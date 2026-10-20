@@ -54,40 +54,40 @@ extern "C" void saturn_touch_ui(void) {
                           ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
     if (ImGui::Begin("##touch_gear", NULL, fl)) {
         ImGui::PushStyleVar(ImGuiStyleVar_Alpha, panel_open ? 1.f : 0.45f);
-        if (ImGui::Button(panel_open ? "Cerrar" : "Controles")) panel_open = !panel_open;
+        if (ImGui::Button(panel_open ? "Close" : "Controls")) panel_open = !panel_open;
         ImGui::PopStyleVar();
     }
     ImGui::End();
 
     if (panel_open) {
         ImGui::SetNextWindowPos(ImVec2(ds.x * 0.5f, ds.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-        if (ImGui::Begin("Controles tactiles", &panel_open, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::Begin("Touch controls", &panel_open, ImGuiWindowFlags_AlwaysAutoResize)) {
             bool vis = touch_visible != 0;
             bool ena = touch_enabled != 0;
             bool edi = touch_edit != 0;
-            if (ImGui::Checkbox("Mostrar controles", &vis)) touch_visible = vis;
-            if (ImGui::Checkbox("Controles activos", &ena)) touch_enabled = ena;
-            ImGui::SliderFloat("Opacidad", &touch_opacity, 0.1f, 1.0f);
-            ImGui::SliderFloat("Tamano de la interfaz", &touch_ui_mult, 0.7f, 1.8f);
-            if (ImGui::Checkbox("Editar posicion y tamano", &edi)) {
+            if (ImGui::Checkbox("Show controls", &vis)) touch_visible = vis;
+            if (ImGui::Checkbox("Controls enabled", &ena)) touch_enabled = ena;
+            ImGui::SliderFloat("Opacity", &touch_opacity, 0.1f, 1.0f);
+            ImGui::SliderFloat("Interface size", &touch_ui_mult, 0.7f, 1.8f);
+            if (ImGui::Checkbox("Edit position and size", &edi)) {
                 touch_edit = edi;
                 if (edi) touch_visible = 1;
                 touch_selected = -2;
             }
             if (touch_edit) {
-                ImGui::TextUnformatted("Toca un boton y arrastralo.");
+                ImGui::TextUnformatted("Tap a button and drag it.");
                 if (touch_selected >= 0) {
-                    ImGui::Text("Seleccionado: %s", touch_buttons[touch_selected].name);
-                    ImGui::SliderFloat("Tamano", &touch_buttons[touch_selected].size, 0.03f, 0.20f);
+                    ImGui::Text("Selected: %s", touch_buttons[touch_selected].name);
+                    ImGui::SliderFloat("Size", &touch_buttons[touch_selected].size, 0.03f, 0.20f);
                 } else if (touch_selected == -1) {
-                    ImGui::TextUnformatted("Seleccionado: stick");
-                    ImGui::SliderFloat("Tamano", &touch_stick_size, 0.08f, 0.35f);
+                    ImGui::TextUnformatted("Selected: stick");
+                    ImGui::SliderFloat("Size", &touch_stick_size, 0.08f, 0.35f);
                 }
-                if (ImGui::Button("Guardar")) touch_layout_save();
+                if (ImGui::Button("Save")) touch_layout_save();
                 ImGui::SameLine();
-                if (ImGui::Button("Restablecer")) touch_layout_reset();
+                if (ImGui::Button("Reset")) touch_layout_reset();
             }
-            ImGui::TextUnformatted("Ocultar controles = imagen limpia para fotos y video.");
+            ImGui::TextUnformatted("Hide controls for clean photos and videos.");
         }
         ImGui::End();
     }

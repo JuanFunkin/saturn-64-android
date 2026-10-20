@@ -716,8 +716,40 @@ void saturn_keyframe_window() {
 char saturnProjectFilename[257] = "Project";
 int current_project_id;
 
+#ifdef __ANDROID__
+// Credit line drawn under "Created by sm64rise" on Saturn's splash screen (only after the ROM is loaded).
+extern float extraction_progress;
+static void saturn_android_splash_credit() {
+    if (extraction_progress < 1.0f) return;
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplSDL2_NewFrame(window);
+    saturn_mobile_begin_frame();
+    ImGui::NewFrame();
+    ImGuiIO& cio = ImGui::GetIO();
+    ImDrawList* cdl = ImGui::GetForegroundDrawList();
+    const char* credit = "Android Port By SJG4 (JuanFunkin)";
+    ImFont* cfont = ImGui::GetFont();
+    float cfs = ImGui::GetFontSize() * 2.4f;
+    ImVec2 cts = cfont->CalcTextSizeA(cfs, 100000.f, 0.f, credit);
+    ImVec2 cpos((cio.DisplaySize.x - cts.x) * 0.5f, cio.DisplaySize.y * 0.84f);
+    cdl->AddText(cfont, cfs, ImVec2(cpos.x + 2.f, cpos.y + 2.f), IM_COL32(0, 0, 0, 210), credit);
+    cdl->AddText(cfont, cfs, cpos, IM_COL32(255, 255, 255, 255), credit);
+    ImGui::Render();
+    GLint prev_program;
+    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
+    glUseProgram(0);
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    glUseProgram(prev_program);
+}
+#endif
+
 void saturn_imgui_update() {
-    if (!splash_finished) return;
+    if (!splash_finished) {
+#ifdef __ANDROID__
+        saturn_android_splash_credit();
+#endif
+        return;
+    }
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
 #ifdef __ANDROID__

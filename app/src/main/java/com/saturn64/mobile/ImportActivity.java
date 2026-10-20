@@ -2,10 +2,16 @@ package com.saturn64.mobile;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -18,15 +24,15 @@ import java.io.OutputStream;
 import java.util.zip.CRC32;
 
 /**
- * Pantalla de inicio: boton "Importar ROM" que abre el explorador de archivos del telefono.
- * Copia el ROM a la carpeta interna de la app como "sm64.z64" (el nombre que espera
- * saturn_rom_extract.cpp) y comprueba tamano y CRC32, igual que Saturn en PC.
+ * Start screen: Saturn background + logo, "Import ROM" opens the phone's file picker.
+ * The ROM is copied to the app's internal folder as "sm64.z64" (the name expected by
+ * saturn_rom_extract.cpp) and verified (size + CRC32), exactly like Saturn does on PC.
  */
 public class ImportActivity extends Activity {
 
     private static final int REQ_PICK_ROM = 1001;
-    private static final long ROM_SIZE = 8L * 1024 * 1024;   // mismo valor que Saturn
-    private static final long ROM_CRC32 = 0x3CE60709L;        // mismo valor que Saturn (US)
+    private static final long ROM_SIZE = 8L * 1024 * 1024;
+    private static final long ROM_CRC32 = 0x3CE60709L;
 
     private TextView status;
     private Button importButton;
@@ -40,51 +46,107 @@ public class ImportActivity extends Activity {
         return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
+    private Button makeButton(String text) {
+        Button b = new Button(this);
+        b.setText(text);
+        b.setAllCaps(false);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(17);
+        b.setTypeface(Typeface.DEFAULT_BOLD);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0x55FFFFFF);
+        bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(2), 0xCCFFFFFF);
+        b.setBackground(bg);
+        b.setMinWidth(dp(190));
+        b.setMinimumHeight(dp(52));
+        b.setPadding(dp(18), dp(8), dp(18), dp(8));
+        return b;
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.CENTER);
-        root.setPadding(dp(24), dp(24), dp(24), dp(24));
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
 
-        TextView title = new TextView(this);
-        title.setText("Saturn 64");
-        title.setTextSize(28);
-        title.setGravity(Gravity.CENTER);
-        root.addView(title);
+        // Saturn background + logo
+        ImageView bg = new ImageView(this);
+        bg.setImageResource(R.drawable.saturn_bg);
+        bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        root.addView(bg, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // Dark gradient at the bottom so the text and buttons are readable
+        View shade = new View(this);
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] { 0x00000000, 0xE6000000 });
+        shade.setBackground(g);
+        FrameLayout.LayoutParams shadeLp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, 0, Gravity.BOTTOM);
+        shadeLp.height = Math.round(getResources().getDisplayMetrics().heightPixels * 0.42f);
+        root.addView(shade, shadeLp);
+
+        // Status text + buttons
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setGravity(Gravity.CENTER_HORIZONTAL);
+        box.setPadding(dp(24), dp(8), dp(24), dp(22));
 
         status = new TextView(this);
+        status.setTextColor(Color.WHITE);
         status.setTextSize(16);
         status.setGravity(Gravity.CENTER);
-        status.setPadding(0, dp(16), 0, dp(24));
-        root.addView(status);
+        status.setShadowLayer(6f, 0f, 2f, Color.BLACK);
+        LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        stLp.bottomMargin = dp(12);
+        box.addView(status, stLp);
 
-        importButton = new Button(this);
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+
+        importButton = makeButton("Import ROM");
         importButton.setOnClickListener(v -> openPicker());
-        root.addView(importButton);
+        LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        bLp.rightMargin = dp(10);
+        row.addView(importButton, bLp);
 
-        continueButton = new Button(this);
-        continueButton.setText("Continuar");
+        continueButton = makeButton("Continue");
         continueButton.setOnClickListener(v -> startEngine());
-        root.addView(continueButton);
+        LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cLp.leftMargin = dp(10);
+        row.addView(continueButton, cLp);
+
+        box.addView(row);
+        root.addView(box, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
 
         setContentView(root);
         refreshUi();
+    }
+
+    private void setEnabledLook(Button b, boolean enabled) {
+        b.setEnabled(enabled);
+        b.setAlpha(enabled ? 1f : 0.45f);
     }
 
     private void refreshUi() {
         File f = romFile();
         boolean ready = f.exists() && f.length() == ROM_SIZE;
         if (ready) {
-            status.setText("ROM lista.");
-            importButton.setText("Importar otro ROM");
+            status.setText("ROM ready.");
+            importButton.setText("Import another ROM");
         } else {
-            status.setText("Importa tu ROM de Super Mario 64 (US, .z64) para empezar.");
-            importButton.setText("Importar ROM");
+            status.setText("Import your Super Mario 64 ROM (US, .z64) to get started.");
+            importButton.setText("Import ROM");
         }
-        continueButton.setEnabled(ready);
+        setEnabledLook(importButton, true);
+        setEnabledLook(continueButton, ready);
     }
 
     private void openPicker() {
@@ -101,13 +163,12 @@ public class ImportActivity extends Activity {
             return;
         }
         final Uri uri = data.getData();
-        status.setText("Importando y verificando...");
-        importButton.setEnabled(false);
-        continueButton.setEnabled(false);
+        status.setText("Importing and verifying...");
+        setEnabledLook(importButton, false);
+        setEnabledLook(continueButton, false);
         new Thread(() -> {
             final String error = importRom(uri);
             runOnUiThread(() -> {
-                importButton.setEnabled(true);
                 if (error != null) {
                     Toast.makeText(this, error, Toast.LENGTH_LONG).show();
                 }
@@ -116,12 +177,12 @@ public class ImportActivity extends Activity {
         }).start();
     }
 
-    /** Devuelve null si todo salio bien, o el mensaje de error. */
+    /** Returns null on success, or the error message. */
     private String importRom(Uri uri) {
         File tmp = new File(getFilesDir(), "sm64.import.tmp");
         try (InputStream in = getContentResolver().openInputStream(uri);
              OutputStream out = new FileOutputStream(tmp)) {
-            if (in == null) return "No se pudo abrir el archivo.";
+            if (in == null) return "Could not open the file.";
             CRC32 crc = new CRC32();
             byte[] buf = new byte[64 * 1024];
             long total = 0;
@@ -130,7 +191,7 @@ public class ImportActivity extends Activity {
                 total += n;
                 if (total > ROM_SIZE) {
                     tmp.delete();
-                    return "ROM invalido: el archivo es demasiado grande (debe pesar 8 MB).";
+                    return "Invalid ROM: the file is too large (it must be 8 MB).";
                 }
                 crc.update(buf, 0, n);
                 out.write(buf, 0, n);
@@ -138,49 +199,47 @@ public class ImportActivity extends Activity {
             out.flush();
             if (total != ROM_SIZE) {
                 tmp.delete();
-                return "ROM invalido: el tamano no es 8 MB.";
+                return "Invalid ROM: the size is not 8 MB.";
             }
             if (crc.getValue() != ROM_CRC32) {
                 tmp.delete();
-                return "ROM invalido: usa un ROM US sin modificar en formato .z64.";
+                return "Invalid ROM: use an unmodified US ROM in .z64 format.";
             }
         } catch (IOException | SecurityException e) {
             tmp.delete();
-            return "Error al copiar el ROM: " + e.getMessage();
+            return "Error copying the ROM: " + e.getMessage();
         }
         File dst = romFile();
         if (dst.exists() && !dst.delete()) {
             tmp.delete();
-            return "No se pudo reemplazar el ROM anterior.";
+            return "Could not replace the previous ROM.";
         }
         if (!tmp.renameTo(dst)) {
             tmp.delete();
-            return "No se pudo guardar el ROM.";
+            return "Could not save the ROM.";
         }
         return null;
     }
 
     private void startEngine() {
-        status.setText("Preparando archivos de Saturn...");
-        importButton.setEnabled(false);
-        continueButton.setEnabled(false);
+        status.setText("Preparing Saturn files...");
+        setEnabledLook(importButton, false);
+        setEnabledLook(continueButton, false);
         new Thread(() -> {
             String error = null;
             try {
                 AssetInstaller.install(getAssets(), getFilesDir());
-            } catch (java.io.IOException e) {
-                error = "Error al preparar los archivos: " + e.getMessage();
+            } catch (IOException e) {
+                error = "Error preparing the files: " + e.getMessage();
             }
             final String err = error;
             runOnUiThread(() -> {
-                importButton.setEnabled(true);
                 if (err != null) {
                     Toast.makeText(this, err, Toast.LENGTH_LONG).show();
-                    refreshUi();
                 } else {
                     startActivity(new Intent(this, SaturnActivity.class));
-                    refreshUi();
                 }
+                refreshUi();
             });
         }).start();
     }
