@@ -57,25 +57,22 @@ if [ ! -d "$ROOT/overlay/saturn" ]; then
 fi
 cp -r "$ROOT"/overlay/saturn/. "$JNI/saturn/"
 
-# Android NDK define bcopy y bzero como macros en strings.h. Saturn declara
-# esas funciones en PR/os_libc.h; desactivar las macros antes de esas
-# declaraciones evita que el preprocesador corrompa las firmas.
-OS_LIBC="$JNI/saturn/include/PR/os_libc.h"
-if [ -f "$OS_LIBC" ]; then
-  python3 - "$OS_LIBC" <<'PYFIX'
+# Android NDK define bcopy/bzero as macros. Undefine them before Saturn's
+# legacy declarations so the declarations are parsed as function prototypes.
+python3 - "$JNI/saturn/include/PR/os_libc.h" <<'PYFIX'
 from pathlib import Path
-import sys
-
+import re, sys
 p = Path(sys.argv[1])
 s = p.read_text()
-old = "extern void bcopy(const void *, void *, size_t);\nextern void bzero(void *, size_t);"
-new = "#ifdef __ANDROID__\n#undef bcopy\n#undef bzero\n#endif\n\n" + old
-if old in s and "#undef bcopy" not in s:
-    p.write_text(s.replace(old, new, 1))
-elif old not in s and ("extern void bcopy" in s or "extern void bzero" in s):
-    raise SystemExit("No se reconoció el formato de las declaraciones bcopy/bzero en os_libc.h")
+if "#undef bcopy" not in s:
+    pattern = r'(?m)^(?=extern\s+void\s+bcopy\s*\()'
+    if not re.search(pattern, s):
+        raise SystemExit("ERROR: no se encontró la declaración extern de bcopy en os_libc.h")
+    s = re.sub(pattern, "#ifdef __ANDROID__\n#undef bcopy\n#undef bzero\n#endif\n", s, count=1)
+p.write_text(s)
 PYFIX
-fi
+
+grep -n -B 4 -A 2 'extern void bcopy' "$JNI/saturn/include/PR/os_libc.h"
 
 # 4) Recursos que Saturn lee al ejecutarse (dentro del APK)
 rm -rf "$ASSETS"
@@ -110,4 +107,4 @@ XML
   echo "Se creó un icono Android provisional en res/mipmap/ic_launcher.xml."
 fi
 
-echo "Listo."
+echo "Ready."
