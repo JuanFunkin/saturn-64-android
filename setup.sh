@@ -61,6 +61,31 @@ cp -r "$ROOT"/overlay/saturn/. "$JNI/saturn/"
 # legacy declarations in Saturn's os_libc.h.
 python3 - "$JNI/saturn/include/PR/os_libc.h" <<'PYFIX'
 from pathlib import Path
+import re
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+pattern = re.compile(
+    r"(?m)^extern void bcopy\(const void \*, void \*, size_t\);\s*\n"
+    r"extern void bzero\(void \*, size_t\);"
+)
+replacement = (
+    "#ifndef __ANDROID__\n"
+    "extern void bcopy(const void *, void *, size_t);\n"
+    "extern void bzero(void *, size_t);\n"
+    "#endif"
+)
+s, count = pattern.subn(replacement, s, count=1)
+if count != 1:
+    raise SystemExit("ERROR: no se encontraron las dos declaraciones esperadas en " + str(p))
+p.write_text(s)
+print("Corrección Android aplicada: las declaraciones bcopy/bzero quedan excluidas en Android.")
+for i, line in enumerate(s.splitlines(), 1):
+    if "bcopy" in line or "bzero" in line or "__ANDROID__" in line:
+        print(f"{i}: {line}")
+PYFIX'
+from pathlib import Path
 import sys
 
 p = Path(sys.argv[1])
