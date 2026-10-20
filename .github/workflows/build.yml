@@ -53,6 +53,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+          # setup.sh descarga SDL2, que incluye un wrapper que no se usa
+          # para compilar este proyecto. Gradle se ejecuta instalado (gradle ...).
+          validate-wrappers: false
 
       - name: Build debug APK
         shell: bash
