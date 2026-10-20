@@ -39,11 +39,27 @@ jobs:
           set -euo pipefail
 
           sdkmanager --version
-          sdkmanager --install \
-            "platform-tools" \
-            "platforms;android-34" \
-            "build-tools;34.0.0" \
-            "ndk;26.1.10909125"
+
+          # Reintentar si la descarga del NDK llega incompleta o corrupta.
+          for attempt in 1 2 3; do
+            echo "Instalación del SDK/NDK: intento $attempt de 3"
+            if sdkmanager --install \
+              "platform-tools" \
+              "platforms;android-34" \
+              "build-tools;34.0.0" \
+              "ndk;26.1.10909125"; then
+              break
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "No se pudo instalar el NDK después de 3 intentos." >&2
+              exit 1
+            fi
+
+            # Eliminar solo la carpeta de la versión de NDK incompleta.
+            rm -rf "$ANDROID_HOME/ndk/26.1.10909125"
+            sleep 5
+          done
 
       - name: Prepare project (download SDL2 and Saturn)
         shell: bash
