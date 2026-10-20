@@ -3,7 +3,7 @@ name: Build APK
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   build:
@@ -20,22 +20,49 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
       - name: Install Android SDK and NDK
+        shell: bash
         run: |
+          set -euxo pipefail
+
+          export ANDROID_SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$GITHUB_WORKSPACE/android-sdk}}"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools:$PATH"
+
+          # Aseguramos que exista cmdline-tools/latest, porque en algunos runners
+          # la ruta de setup-android no queda en la ubicación esperada.
+          if [ ! -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+            mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+
+            if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/16.0/bin" ]; then
+              export PATH="$ANDROID_SDK_ROOT/cmdline-tools/16.0/bin:$PATH"
+            fi
+
+            if [ ! -f "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" ]; then
+              echo "Downloading Android command-line tools..."
+              curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o /tmp/cmdline-tools.zip
+              rm -rf "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+              unzip -q -o /tmp/cmdline-tools.zip -d "$ANDROID_SDK_ROOT"
+              mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+              if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/bin" ]; then
+                mv "$ANDROID_SDK_ROOT/cmdline-tools/bin" "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+              fi
+            fi
+          fi
+
           yes | sdkmanager --licenses
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
 
       - name: Prepare project (download SDL2 and Saturn)
         run: bash ./setup.sh
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: "8.7"
 
       - name: Build APK
         run: gradle assembleDebug --no-daemon --stacktrace
