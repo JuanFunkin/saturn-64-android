@@ -9,6 +9,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+
     steps:
       - uses: actions/checkout@v4
 
@@ -17,9 +22,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Install Android SDK and NDK
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
+          yes | sdkmanager --licenses
           sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "ndk;26.1.10909125"
 
       - name: Prepare project (download SDL2 and Saturn)
