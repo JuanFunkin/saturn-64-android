@@ -57,54 +57,22 @@ if [ ! -d "$ROOT/overlay/saturn" ]; then
 fi
 cp -r "$ROOT"/overlay/saturn/. "$JNI/saturn/"
 
-# Android NDK defines bcopy/bzero as macros. Undefine them before the
-# legacy declarations in Saturn's os_libc.h.
+# Android NDK define bcopy/bzero as macros. Undefine them before Saturn's
+# legacy declarations so the declarations are parsed as function prototypes.
 python3 - "$JNI/saturn/include/PR/os_libc.h" <<'PYFIX'
 from pathlib import Path
-import re
-import sys
-
+import re, sys
 p = Path(sys.argv[1])
 s = p.read_text()
-pattern = re.compile(
-    r"(?m)^extern void bcopy\(const void \*, void \*, size_t\);\s*\n"
-    r"extern void bzero\(void \*, size_t\);"
-)
-replacement = (
-    "#ifndef __ANDROID__\n"
-    "extern void bcopy(const void *, void *, size_t);\n"
-    "extern void bzero(void *, size_t);\n"
-    "#endif"
-)
-s, count = pattern.subn(replacement, s, count=1)
-if count != 1:
-    raise SystemExit("ERROR: no se encontraron las dos declaraciones esperadas en " + str(p))
-p.write_text(s)
-print("Corrección Android aplicada: las declaraciones bcopy/bzero quedan excluidas en Android.")
-for i, line in enumerate(s.splitlines(), 1):
-    if "bcopy" in line or "bzero" in line or "__ANDROID__" in line:
-        print(f"{i}: {line}")
-PYFIX'
-from pathlib import Path
-import sys
-
-p = Path(sys.argv[1])
-s = p.read_text()
-needle = "extern void bcopy(const void *, void *, size_t);"
 if "#undef bcopy" not in s:
-    if needle not in s:
-        raise SystemExit("ERROR: no se encontró la declaración de bcopy en " + str(p))
-    fix = "#ifdef __ANDROID__\\n#undef bcopy\\n#undef bzero\\n#endif\\n\\n"
-    s = s.replace(needle, fix + needle, 1)
+    pattern = r'(?m)^(?=extern\s+void\s+bcopy\s*\()'
+    if not re.search(pattern, s):
+        raise SystemExit("ERROR: no se encontró la declaración extern de bcopy en os_libc.h")
+    s = re.sub(pattern, "#ifdef __ANDROID__\n#undef bcopy\n#undef bzero\n#endif\n", s, count=1)
 p.write_text(s)
-s = p.read_text()
-if "#undef bcopy" not in s or "#undef bzero" not in s:
-    raise SystemExit("ERROR: no se pudo aplicar la corrección de bcopy/bzero")
-print("Corrección Android aplicada en os_libc.h:")
-for i, line in enumerate(s.splitlines(), 1):
-    if "#undef bcopy" in line or "#undef bzero" in line or "extern void bcopy" in line or "extern void bzero" in line:
-        print(f"{i}: {line}")
 PYFIX
+
+grep -n -B 4 -A 2 'extern void bcopy' "$JNI/saturn/include/PR/os_libc.h"
 
 # 4) Recursos que Saturn lee al ejecutarse (dentro del APK)
 rm -rf "$ASSETS"
