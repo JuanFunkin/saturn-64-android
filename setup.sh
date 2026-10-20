@@ -57,6 +57,26 @@ if [ ! -d "$ROOT/overlay/saturn" ]; then
 fi
 cp -r "$ROOT"/overlay/saturn/. "$JNI/saturn/"
 
+# Android NDK define bcopy y bzero como macros en strings.h. Saturn declara
+# esas funciones en PR/os_libc.h; desactivar las macros antes de esas
+# declaraciones evita que el preprocesador corrompa las firmas.
+OS_LIBC="$JNI/saturn/include/PR/os_libc.h"
+if [ -f "$OS_LIBC" ]; then
+  python3 - "$OS_LIBC" <<'PYFIX'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+old = "extern void bcopy(const void *, void *, size_t);\nextern void bzero(void *, size_t);"
+new = "#ifdef __ANDROID__\n#undef bcopy\n#undef bzero\n#endif\n\n" + old
+if old in s and "#undef bcopy" not in s:
+    p.write_text(s.replace(old, new, 1))
+elif old not in s and ("extern void bcopy" in s or "extern void bzero" in s):
+    raise SystemExit("No se reconoció el formato de las declaraciones bcopy/bzero en os_libc.h")
+PYFIX
+fi
+
 # 4) Recursos que Saturn lee al ejecutarse (dentro del APK)
 rm -rf "$ASSETS"
 mkdir -p "$ASSETS/textures"
