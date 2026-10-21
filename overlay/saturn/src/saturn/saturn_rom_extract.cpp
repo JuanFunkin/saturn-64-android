@@ -13,6 +13,7 @@
 // Android: no hay dialogos de escritorio (pfd). Usamos el cuadro de mensaje de SDL2.
 #include <SDL2/SDL.h>
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 #include <string>
 #include <vector>

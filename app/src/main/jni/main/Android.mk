@@ -27,6 +27,7 @@ LOCAL_CFLAGS := \
     -Wno-implicit-int -Wno-deprecated-declarations -Wno-everything
 
 LOCAL_CPPFLAGS := -std=c++17 -fexceptions -frtti
+LOCAL_DISABLE_FORMAT_STRING_CHECKS := true
 
 LOCAL_SRC_FILES := \
     $(SAT)/actors/common0.c \
@@ -293,7 +294,6 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/pc/controller/controller_recorded_tas.c \
     $(SAT)/src/pc/controller/controller_sdl2.c \
     $(SAT)/src/pc/controller/controller_touch.c \
-    $(SAT)/src/pc/discord/discordrpc.c \
     $(SAT)/src/pc/fs/dirtree.c \
     $(SAT)/src/pc/fs/fs.c \
     $(SAT)/src/pc/fs/fs_packtype_dir.c \
