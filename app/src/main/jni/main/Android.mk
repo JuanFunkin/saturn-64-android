@@ -231,6 +231,38 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/buffers/framebuffers.c \
     $(SAT)/src/buffers/gfx_output_buffer.c \
     $(SAT)/src/buffers/zbuffer.c \
+    $(SAT)/src/engine/behavior_script.c \
+    $(SAT)/src/engine/geo_layout.c \
+    $(SAT)/src/engine/graph_node.c \
+    $(SAT)/src/engine/graph_node_manager.c \
+    $(SAT)/src/engine/level_script.c \
+    $(SAT)/src/engine/math_util.c \
+    $(SAT)/src/engine/surface_collision.c \
+    $(SAT)/src/engine/surface_load.c \
+    $(SAT)/src/game/area.c \
+    $(SAT)/src/game/behavior_actions.c \
+    $(SAT)/src/game/camera.c \
+    $(SAT)/src/game/debug.c \
+    $(SAT)/src/game/debug_course.c \
+    $(SAT)/src/game/envfx_bubbles.c \
+    $(SAT)/src/game/envfx_snow.c \
+    $(SAT)/src/game/game_init.c \
+    $(SAT)/src/game/geo_misc.c \
+    $(SAT)/src/game/hud.c \
+    $(SAT)/src/game/ingame_menu.c \
+    $(SAT)/src/game/interaction.c \
+    $(SAT)/src/game/level_geo.c \
+    $(SAT)/src/game/level_update.c \
+    $(SAT)/src/game/macro_special_objects.c \
+    $(SAT)/src/game/mario.c \
+    $(SAT)/src/game/mario_actions_airborne.c \
+    $(SAT)/src/game/mario_actions_automatic.c \
+    $(SAT)/src/game/mario_actions_cutscene.c \
+    $(SAT)/src/game/mario_actions_moving.c \
+    $(SAT)/src/game/mario_actions_object.c \
+    $(SAT)/src/game/mario_actions_stationary.c \
+    $(SAT)/src/game/mario_actions_submerged.c \
+    $(SAT)/src/game/mario_misc.c \
     $(SAT)/src/game/mario_step.c \
     $(SAT)/src/game/memory.c \
     $(SAT)/src/game/moving_texture.c \
@@ -342,6 +374,7 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/saturn/touch/saturn_mobile_ui.cpp \
     $(SAT)/src/saturn/touch/saturn_touch_ui.cpp
 
+LOCAL_LDFLAGS := -Wl,--error-limit=0
 LOCAL_LDLIBS := -lGLESv2 -llog -landroid -lm
 
 include $(BUILD_SHARED_LIBRARY)
