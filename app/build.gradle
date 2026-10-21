@@ -19,7 +19,7 @@ android {
         }
         externalNativeBuild {
             ndkBuild {
-                arguments 'APP_PLATFORM=android-21'
+                arguments 'APP_PLATFORM=android-21', '-k'   // -k: keep going, shows ALL compile errors in one run
             }
         }
     }

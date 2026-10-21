@@ -57,23 +57,6 @@ if [ ! -d "$ROOT/overlay/saturn" ]; then
 fi
 cp -r "$ROOT"/overlay/saturn/. "$JNI/saturn/"
 
-# Android NDK define bcopy/bzero as macros. Undefine them before Saturn's
-# legacy declarations so the declarations are parsed as function prototypes.
-python3 - "$JNI/saturn/include/PR/os_libc.h" <<'PYFIX'
-from pathlib import Path
-import re, sys
-p = Path(sys.argv[1])
-s = p.read_text()
-if "#undef bcopy" not in s:
-    pattern = r'(?m)^(?=extern\s+void\s+bcopy\s*\()'
-    if not re.search(pattern, s):
-        raise SystemExit("ERROR: no se encontró la declaración extern de bcopy en os_libc.h")
-    s = re.sub(pattern, "#ifdef __ANDROID__\n#undef bcopy\n#undef bzero\n#endif\n", s, count=1)
-p.write_text(s)
-PYFIX
-
-grep -n -B 4 -A 2 'extern void bcopy' "$JNI/saturn/include/PR/os_libc.h"
-
 # 4) Recursos que Saturn lee al ejecutarse (dentro del APK)
 rm -rf "$ASSETS"
 mkdir -p "$ASSETS/textures"
