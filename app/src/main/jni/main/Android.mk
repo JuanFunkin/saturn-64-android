@@ -317,6 +317,7 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/menu/intro_geo.c \
     $(SAT)/src/menu/level_select_menu.c \
     $(SAT)/src/menu/star_select.c \
+    $(SAT)/src/pc/audio/audio_null.c \
     $(SAT)/src/pc/audio/audio_sdl2.c \
     $(SAT)/src/pc/cheats.c \
     $(SAT)/src/pc/cliopts.c \
