@@ -6,6 +6,7 @@ void saturn_mobile_init_scale(SDL_Window *w);
 void saturn_mobile_begin_frame(void);
 void saturn_mobile_style(void);
 void saturn_mobile_end_frame(void);
+void saturn_mobile_collect_ui_rects(void);
 #endif
 
 #include <string>
@@ -1207,6 +1208,7 @@ void saturn_imgui_update() {
 #ifdef __ANDROID__
     saturn_mobile_end_frame();
     saturn_touch_ui();
+    saturn_mobile_collect_ui_rects();
 #endif
     ImGui::Render();
     GLint last_program;

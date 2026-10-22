@@ -23,9 +23,11 @@ float mobile_scale_base = 1.0f;   // escala con la que se dibuja la tipografia (
 void saturn_mobile_init_scale(SDL_Window *w) {
     int ww = 1280, hh = 720;
     if (w) SDL_GetWindowSize(w, &ww, &hh);
-    float s = (float)hh / 600.0f;
-    if (s < 1.0f) s = 1.0f;
-    if (s > 3.0f) s = 3.0f;
+    // The UI is laid out as if the screen were ~340 logical pixels tall (about 3x bigger than on PC),
+    // so text and buttons are comfortable for fingers on any phone.
+    float s = (float)hh / 340.0f;
+    if (s < 1.6f) s = 1.6f;
+    if (s > 5.0f) s = 5.0f;
     mobile_scale_base = s;
 }
 
@@ -49,14 +51,16 @@ void saturn_mobile_begin_frame(void) {
 // Se llama al final de imgui_update_theme(): margenes y controles grandes para dedos.
 void saturn_mobile_style(void) {
     ImGuiStyle &st = ImGui::GetStyle();
-    st.WindowPadding = ImVec2(8.f, 8.f);
-    st.FramePadding = ImVec2(8.f, 6.f);
-    st.ItemSpacing = ImVec2(8.f, 8.f);
-    st.ItemInnerSpacing = ImVec2(6.f, 6.f);
-    st.TouchExtraPadding = ImVec2(4.f, 4.f);
-    st.ScrollbarSize = 16.f;
-    st.GrabMinSize = 18.f;
-    st.WindowMinSize = ImVec2(80.f, 50.f);
+    st.WindowPadding = ImVec2(10.f, 10.f);
+    st.FramePadding = ImVec2(10.f, 9.f);
+    st.ItemSpacing = ImVec2(10.f, 11.f);
+    st.ItemInnerSpacing = ImVec2(8.f, 8.f);
+    st.TouchExtraPadding = ImVec2(6.f, 6.f);
+    st.ScrollbarSize = 22.f;
+    st.GrabMinSize = 24.f;
+    st.WindowMinSize = ImVec2(90.f, 60.f);
+    st.PopupRounding = 8.f;
+    st.FrameRounding = 6.f;
 }
 
 // Se llama al final del frame, antes de ImGui::Render().
@@ -104,5 +108,23 @@ void saturn_mobile_end_frame(void) {
     } else {
         held = 0.f;
         if (lp_state == 2) lp_state = 0;
+    }
+}
+
+// Called after saturn_touch_ui(), right before ImGui::Render(): remembers where the visible windows are so that
+// touches on them do not also move Mario (see touch_handle_event).
+void saturn_mobile_collect_ui_rects(void) {
+    ImGuiContext *g = ImGui::GetCurrentContext();
+    ImGuiIO &io = ImGui::GetIO();
+    touch_ui_rects_begin();
+    if (io.DisplaySize.x <= 0.f || io.DisplaySize.y <= 0.f) return;
+    for (int i = 0; i < g->Windows.Size; i++) {
+        ImGuiWindow *w = g->Windows[i];
+        if (!w->Active || w->Hidden) continue;
+        if (w->Flags & (ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_Tooltip)) continue;
+        ImRect r = w->Rect();
+        if (r.GetWidth() > io.DisplaySize.x * 0.97f && r.GetHeight() > io.DisplaySize.y * 0.97f) continue; // full-screen backdrops
+        touch_ui_rect_add(r.Min.x / io.DisplaySize.x, r.Min.y / io.DisplaySize.y,
+                          r.Max.x / io.DisplaySize.x, r.Max.y / io.DisplaySize.y);
     }
 }
