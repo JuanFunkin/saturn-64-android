@@ -6,7 +6,9 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
@@ -21,6 +23,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.util.zip.CRC32;
 
 /**
@@ -31,6 +34,7 @@ import java.util.zip.CRC32;
 public class ImportActivity extends Activity {
 
     private static final int REQ_PICK_ROM = 1001;
+    private static final int REQ_SAVE_LOG = 1002;
     private static final long ROM_SIZE = 8L * 1024 * 1024;
     private static final long ROM_CRC32 = 0x3CE60709L;
 
@@ -123,6 +127,18 @@ public class ImportActivity extends Activity {
         row.addView(continueButton, cLp);
 
         box.addView(row);
+
+        Button logButton = new Button(this);
+        logButton.setText("Save debug log");
+        logButton.setAllCaps(false);
+        logButton.setTextColor(0xCCFFFFFF);
+        logButton.setTextSize(13);
+        logButton.setBackgroundColor(Color.TRANSPARENT);
+        logButton.setOnClickListener(v -> saveLog());
+        LinearLayout.LayoutParams lgLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        lgLp.topMargin = dp(6);
+        box.addView(logButton, lgLp);
         root.addView(box, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
 
@@ -159,6 +175,10 @@ public class ImportActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_SAVE_LOG) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) writeLog(data.getData());
+            return;
+        }
         if (requestCode != REQ_PICK_ROM || resultCode != RESULT_OK || data == null || data.getData() == null) {
             return;
         }
@@ -242,5 +262,46 @@ public class ImportActivity extends Activity {
                 refreshUi();
             });
         }).start();
+    }
+
+    // ---- Debug log (so crashes can be shared) ----
+
+    private void saveLog() {
+        Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
+        i.setType("text/plain");
+        i.putExtra(Intent.EXTRA_TITLE, "saturn_log.txt");
+        startActivityForResult(i, REQ_SAVE_LOG);
+    }
+
+    private static String tail(File f, int maxBytes) {
+        if (!f.exists()) return "(missing: " + f.getName() + ")\n";
+        try (RandomAccessFile raf = new RandomAccessFile(f, "r")) {
+            long len = raf.length();
+            int n = (int) Math.min(len, maxBytes);
+            byte[] b = new byte[n];
+            raf.seek(len - n);
+            raf.readFully(b);
+            return new String(b, "UTF-8");
+        } catch (IOException e) {
+            return "(could not read " + f.getName() + ": " + e.getMessage() + ")\n";
+        }
+    }
+
+    private void writeLog(Uri uri) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
+        sb.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
+        sb.append("ABIs: ").append(TextUtils.join(", ", Build.SUPPORTED_ABIS)).append("\n\n");
+        sb.append("===== crash.txt =====\n").append(tail(new File(getFilesDir(), "crash.txt"), 20000));
+        sb.append("\n===== saturn_log.txt (last run) =====\n").append(tail(new File(getFilesDir(), "saturn_log.txt"), 150000));
+        sb.append("\n===== saturn_log_prev.txt (run before) =====\n").append(tail(new File(getFilesDir(), "saturn_log_prev.txt"), 40000));
+        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            if (out == null) throw new IOException("no output stream");
+            out.write(sb.toString().getBytes("UTF-8"));
+            Toast.makeText(this, "Log saved.", Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            Toast.makeText(this, "Could not save the log: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
     }
 }

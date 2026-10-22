@@ -15,7 +15,11 @@ android {
         versionName "0.2-fase2"
 
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a'
+            if (project.hasProperty('onlyArm64')) {
+                abiFilters 'arm64-v8a'                  // fast test build (64-bit only)
+            } else {
+                abiFilters 'armeabi-v7a', 'arm64-v8a'   // 32-bit + 64-bit
+            }
         }
         externalNativeBuild {
             ndkBuild {

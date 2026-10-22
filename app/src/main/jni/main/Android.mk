@@ -18,7 +18,7 @@ LOCAL_C_INCLUDES := \
 LOCAL_CFLAGS := \
     -DDYNOS -DRAPI_GL=1 -DWAPI_SDL2=1 -DAAPI_SDL2=1 -DCAPI_SDL2=1 -DHAVE_SDL2=1 \
     -DVERSION_US -D_LANGUAGE_C -DNON_MATCHING -DAVOID_UB -DF3DEX_GBI_2E \
-    -fno-strict-aliasing -fwrapv -fcommon \
+    -fno-strict-aliasing -fwrapv -fcommon -funwind-tables \
     -DGIT_HASH=\"5008553\" -DGIT_BRANCH=\"legacy\" \
     -DNODRAWINGDISTANCE -DTEXTURE_FIX -DEXT_OPTIONS_MENU -DEXTERNAL_DATA \
     -DFS_BASEDIR=\"res\" \
@@ -317,6 +317,7 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/menu/intro_geo.c \
     $(SAT)/src/menu/level_select_menu.c \
     $(SAT)/src/menu/star_select.c \
+    $(SAT)/src/pc/android_debug.c \
     $(SAT)/src/pc/audio/audio_null.c \
     $(SAT)/src/pc/audio/audio_sdl2.c \
     $(SAT)/src/pc/cheats.c \
@@ -375,7 +376,7 @@ LOCAL_SRC_FILES := \
     $(SAT)/src/saturn/touch/saturn_mobile_ui.cpp \
     $(SAT)/src/saturn/touch/saturn_touch_ui.cpp
 
-LOCAL_LDFLAGS := -Wl,--error-limit=0
+LOCAL_LDFLAGS := -Wl,--error-limit=0 -Wl,--export-dynamic
 LOCAL_LDLIBS := -lGLESv2 -llog -landroid -lm
 
 include $(BUILD_SHARED_LIBRARY)

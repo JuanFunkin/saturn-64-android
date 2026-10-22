@@ -42,6 +42,7 @@
 #ifdef __ANDROID__
 #include <unistd.h>
 #include <SDL2/SDL.h>
+void android_debug_start(void);
 #endif
 
 #ifdef DISCORDRPC
@@ -313,6 +314,7 @@ int main(int argc, char *argv[]) {
         const char *internal = SDL_AndroidGetInternalStoragePath();
         if (internal) chdir(internal);
     }
+    android_debug_start();
 #endif
     parse_cli_opts(argc, argv);
 
