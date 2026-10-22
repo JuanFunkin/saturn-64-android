@@ -4,12 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       abi:
-        description: 'Which ABIs to build (arm64 = fast, for testing; all = 32-bit + 64-bit)'
+        description: 'Which ABIs to build (all = 32-bit + 64-bit; arm64 = 64-bit only, faster for quick tests)'
         type: choice
         options:
-          - arm64
           - all
-        default: arm64
+          - arm64
+        default: all
   push:
     branches:
       - main
@@ -102,10 +102,10 @@ jobs:
           CCACHE_COMPILERCHECK: string:ndk-26.1.10909125
           CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros
         run: |
-          if [ "${{ inputs.abi }}" = "all" ]; then
-            gradle assembleDebug --no-daemon --stacktrace
-          else
+          if [ "${{ inputs.abi }}" = "arm64" ]; then
             gradle assembleDebug --no-daemon --stacktrace -PonlyArm64
+          else
+            gradle assembleDebug --no-daemon --stacktrace
           fi
           ccache -s || true
 
