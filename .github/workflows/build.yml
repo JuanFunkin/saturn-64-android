@@ -2,6 +2,14 @@ name: Build APK
 
 on:
   workflow_dispatch:
+    inputs:
+      abi:
+        description: 'Which ABIs to build (arm64 = fast, for testing; all = 32-bit + 64-bit)'
+        type: choice
+        options:
+          - arm64
+          - all
+        default: arm64
   push:
     branches:
       - main
@@ -73,9 +81,33 @@ jobs:
           # para compilar este proyecto. Gradle se ejecuta instalado (gradle ...).
           validate-wrappers: false
 
+      - name: Install ccache
+        shell: bash
+        run: sudo apt-get install -y ccache
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
       - name: Build debug APK
         shell: bash
-        run: gradle assembleDebug --no-daemon --stacktrace
+        env:
+          NDK_CCACHE: /usr/bin/ccache
+          CCACHE_DIR: /home/runner/.ccache
+          CCACHE_MAXSIZE: 1G
+          CCACHE_COMPILERCHECK: string:ndk-26.1.10909125
+          CCACHE_SLOPPINESS: include_file_mtime,include_file_ctime,time_macros
+        run: |
+          if [ "${{ inputs.abi }}" = "all" ]; then
+            gradle assembleDebug --no-daemon --stacktrace
+          else
+            gradle assembleDebug --no-daemon --stacktrace -PonlyArm64
+          fi
+          ccache -s || true
 
       - name: Upload APK
         if: success()
