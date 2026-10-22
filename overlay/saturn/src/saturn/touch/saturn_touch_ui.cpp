@@ -95,7 +95,7 @@ static void draw_toolbar(ImDrawList *dl, ImVec2 ds) {
         ImVec2 c(touch_tool_x[i] * ds.x, touch_tool_y * ds.y);
         float r = touch_tool_r * ds.y;
         bool down = touch_tool_down[i] != 0;
-        if (touch_hide_state == 2) {
+        if (touch_hide_state != 0) {
             if (i != 0) continue;
             dl->AddCircleFilled(c, r * 0.28f, rgba(255, 255, 255, 0.25f), 20);   // tiny dot: tap to bring everything back
             continue;
@@ -112,7 +112,6 @@ static void draw_toolbar(ImDrawList *dl, ImVec2 ds) {
             }
             dl->AddPolyline(pts, 24, ink, ImDrawFlags_Closed, r * 0.09f);
             dl->AddCircleFilled(c, r * 0.17f, ink, 16);
-            if (touch_hide_state == 1) dl->AddLine(ImVec2(c.x - r * 0.55f, c.y + r * 0.45f), ImVec2(c.x + r * 0.55f, c.y - r * 0.45f), ink, r * 0.12f);
         } else {        // menu (3 lines)
             for (int k = -1; k <= 1; k++)
                 dl->AddLine(ImVec2(c.x - r * 0.42f, c.y + k * r * 0.30f), ImVec2(c.x + r * 0.42f, c.y + k * r * 0.30f), ink, r * 0.13f);
@@ -121,23 +120,53 @@ static void draw_toolbar(ImDrawList *dl, ImVec2 ds) {
 }
 
 static bool big_button(const char *label) {
-    return ImGui::Button(label, ImVec2(-1.f, 40.f));
+    return ImGui::Button(label, ImVec2(-1.f, 44.f));
+}
+
+static void section_title(const char *text) {
+    ImGui::Spacing();
+    ImGui::TextColored(ImVec4(0.55f, 0.75f, 1.0f, 1.0f), "%s", text);
+    ImGui::Separator();
 }
 
 static void draw_quick_menu(ImVec2 ds) {
     static bool was_open = false;
     if (!touch_menu_open) { was_open = false; return; }
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(ds.x * 0.36f, ds.y), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.96f);
+    ImGui::SetNextWindowSize(ImVec2(ds.x * 0.40f, ds.y), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.97f);
     if (!was_open) ImGui::SetNextWindowFocus();
     was_open = true;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.f);
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.22f, 0.42f, 1.f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.32f, 0.58f, 1.f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.34f, 0.42f, 0.78f, 1.f));
+
     ImGuiWindowFlags fl = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
                           ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
     if (ImGui::Begin("##touch_quick_menu", NULL, fl)) {
-        ImGui::TextUnformatted("SATURN");
-        ImGui::Separator();
+        // ---- touch controls first: this is what is needed most on a phone ----
+        section_title("TOUCH CONTROLS");
+        if (big_button("Hide controls (clean shot)###q_hide")) {
+            touch_hide_state = 1;       // everything hidden; a tiny dot (top right) brings it back
+            touch_menu_open = 0;
+            touch_layout_save();
+        }
+        if (big_button("Edit layout (move / resize)###q_edit")) {
+            touch_edit = 1;
+            touch_selected = -2;
+            touch_menu_open = 0;
+        }
+        bool ena = touch_enabled != 0;
+        if (ImGui::Checkbox("Controls enabled", &ena)) touch_enabled = ena ? 1 : 0;
+        ImGui::SliderFloat("Opacity", &touch_opacity, 0.15f, 1.0f);
+        ImGui::SliderFloat("Interface size", &touch_ui_mult, 0.6f, 2.0f);
+        ImGui::TextWrapped("Eye icon (top right): hide / show the controls.");
 
+        // ---- Saturn shortcuts ----
+        section_title("SATURN");
         if (big_button(showMenu ? "Hide Saturn UI###q_ui" : "Show Saturn UI###q_ui")) showMenu = !showMenu;
         if (big_button("Settings###q_settings")) { windowSettings = !windowSettings; k_popout_open = false; }
         if (big_button("Timeline (keyframes)###q_timeline")) {
@@ -154,32 +183,11 @@ static void draw_quick_menu(ImVec2 ds) {
         if (big_button(windowStats ? "Hide stats###q_stats" : "Show stats###q_stats")) windowStats = !windowStats;
 
         ImGui::Spacing();
-        ImGui::TextUnformatted("TOUCH CONTROLS");
-        ImGui::Separator();
-        if (big_button(touch_hide_state == 0 ? "Hide touch buttons###q_hide" : "Show touch buttons###q_hide")) {
-            touch_hide_state = (touch_hide_state == 0) ? 1 : 0;
-            touch_menu_open = 0;
-        }
-        if (big_button("Hide everything (clean shot)###q_clean")) {
-            touch_hide_state = 2;
-            touch_menu_open = 0;
-        }
-        if (big_button("Edit button layout###q_edit")) {
-            touch_edit = 1;
-            touch_hide_state = 0;
-            touch_selected = -2;
-            touch_menu_open = 0;
-        }
-        bool ena = touch_enabled != 0;
-        if (ImGui::Checkbox("Controls enabled", &ena)) touch_enabled = ena ? 1 : 0;
-        ImGui::SliderFloat("Opacity", &touch_opacity, 0.15f, 1.0f);
-        if (ImGui::SliderFloat("Interface size", &touch_ui_mult, 0.6f, 2.0f)) { /* applied next frame */ }
-        ImGui::TextWrapped("Eye icon (top right) hides/shows the buttons. After \"Hide everything\" only a tiny dot is left: tap it to bring everything back.");
-
-        ImGui::Spacing();
-        if (big_button("Close menu###q_close")) { touch_menu_open = 0; touch_layout_save(); }
+        if (big_button("Close###q_close")) { touch_menu_open = 0; touch_layout_save(); }
     }
     ImGui::End();
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
 }
 
 static void draw_edit_panel(ImVec2 ds) {
@@ -220,9 +228,9 @@ extern "C" void saturn_touch_ui(void) {
     // Toolbar taps
     int act = touch_take_action();
     if (act == TA_EYE) {
-        touch_hide_state = (touch_hide_state == 0) ? 1 : 0;   // eye: hide / show the game buttons
+        touch_hide_state = touch_hide_state ? 0 : 1;   // eye: hide / show everything
         touch_menu_open = 0;
-    } else if (act == TA_MENU && touch_hide_state != 2) {
+    } else if (act == TA_MENU && touch_hide_state == 0) {
         touch_menu_open = touch_menu_open ? 0 : 1;
         if (!touch_menu_open) touch_layout_save();
     }
@@ -231,11 +239,15 @@ extern "C" void saturn_touch_ui(void) {
     if (show_game) {
         for (int i = 0; i < TB_COUNT; i++) {
             if (!touch_buttons[i].visible && !touch_edit) continue;
+            float br = touch_buttons[i].size * ds.y;
+            if (!touch_edit && touch_circle_overlaps_ui(touch_buttons[i].x, touch_buttons[i].y, br / ds.x, br / ds.y)) continue;
             ImVec2 c(touch_buttons[i].x * ds.x, touch_buttons[i].y * ds.y);
             draw_game_button(dl, c, touch_buttons[i].size * ds.y, i, touch_buttons[i].pressed != 0,
                              touch_edit && touch_selected == i, touch_buttons[i].visible == 0);
         }
-        draw_stick(dl, ds, touch_edit && touch_selected == -1);
+        float sr = touch_stick_size * ds.y;
+        if (touch_edit || touch_stick_active || !touch_circle_overlaps_ui(touch_stick_x, touch_stick_y, sr / ds.x, sr / ds.y))
+            draw_stick(dl, ds, touch_edit && touch_selected == -1);
     }
 
     draw_toolbar(dl, ds);

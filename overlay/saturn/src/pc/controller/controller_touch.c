@@ -32,6 +32,7 @@ int   touch_menu_open = 0;
 float touch_opacity = 0.70f;
 float touch_ui_mult = 1.0f;
 int   touch_ui_capture = 0;
+int   touch_ui_popup_open = 0;
 
 static SDL_FingerID stick_finger = 0;
 static SDL_FingerID drag_finger = 0;
@@ -54,6 +55,13 @@ void touch_ui_rect_add(float x0, float y0, float x1, float y1) {
 static int point_in_ui(float nx, float ny) {
     for (int i = 0; i < ui_rect_count; i++) {
         if (nx >= ui_rects[i][0] && nx <= ui_rects[i][2] && ny >= ui_rects[i][1] && ny <= ui_rects[i][3]) return 1;
+    }
+    return 0;
+}
+
+int touch_circle_overlaps_ui(float nx, float ny, float rx, float ry) {
+    for (int i = 0; i < ui_rect_count; i++) {
+        if (nx >= ui_rects[i][0] - rx && nx <= ui_rects[i][2] + rx && ny >= ui_rects[i][1] - ry && ny <= ui_rects[i][3] + ry) return 1;
     }
     return 0;
 }
@@ -213,7 +221,7 @@ void touch_handle_event(const SDL_Event *e) {
     // --- edit mode: drag buttons ---
     if (touch_edit) {
         if (e->type == SDL_FINGERDOWN) {
-            if (point_in_ui(nx, ny)) return;
+            if (touch_ui_popup_open || point_in_ui(nx, ny)) return;
             int hit = hit_test(nx, ny, 1, 1);
             touch_selected = hit;
             if (hit != -2) { dragging = 1; drag_finger = id; }
@@ -229,7 +237,7 @@ void touch_handle_event(const SDL_Event *e) {
     if (!touch_enabled) return;
 
     if (e->type == SDL_FINGERDOWN) {
-        if (point_in_ui(nx, ny)) return;           // the touch belongs to a Saturn window/menu
+        if (touch_ui_popup_open || point_in_ui(nx, ny)) return;   // the touch belongs to a Saturn window/menu
         int hit = hit_test(nx, ny, 0, 0);
         if (hit >= 0) {
             touch_buttons[hit].pressed = 1;

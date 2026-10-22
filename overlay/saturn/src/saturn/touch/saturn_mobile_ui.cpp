@@ -9,6 +9,8 @@
 
 #include <math.h>
 #include <float.h>
+#include <stdio.h>
+#include <string.h>
 #include <SDL2/SDL.h>
 #include "saturn/libs/imgui/imgui.h"
 #include "saturn/libs/imgui/imgui_internal.h"
@@ -18,6 +20,7 @@ extern "C" {
 }
 
 float mobile_scale_base = 1.0f;   // escala con la que se dibuja la tipografia (fija tras iniciar)
+float g_saturn_mouse_scale = 1.0f; // escala total actual (usada por el backend de SDL para la posicion del toque)
 
 // Altura logica objetivo: la interfaz de PC de Saturn esta pensada para ventanas de ~600 px de alto.
 void saturn_mobile_init_scale(SDL_Window *w) {
@@ -40,10 +43,7 @@ void saturn_mobile_begin_frame(void) {
     io.DisplaySize.y /= S;
     io.DisplayFramebufferScale.x *= S;
     io.DisplayFramebufferScale.y *= S;
-    if (io.MousePos.x > -FLT_MAX / 2.f) {
-        io.MousePos.x /= S;
-        io.MousePos.y /= S;
-    }
+    g_saturn_mouse_scale = S;   // the SDL backend divides touch/mouse positions by this (io.MousePos is rebuilt every frame)
     io.FontGlobalScale = 1.0f / mobile_scale_base;
     io.MouseDragThreshold = 10.0f;
 }
@@ -117,14 +117,23 @@ void saturn_mobile_collect_ui_rects(void) {
     ImGuiContext *g = ImGui::GetCurrentContext();
     ImGuiIO &io = ImGui::GetIO();
     touch_ui_rects_begin();
+    touch_ui_popup_open = ImGui::IsPopupOpen((const char *)NULL, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel) ? 1 : 0;
     if (io.DisplaySize.x <= 0.f || io.DisplaySize.y <= 0.f) return;
+    static int last_logged = -1;
+    int logged = 0;
     for (int i = 0; i < g->Windows.Size; i++) {
         ImGuiWindow *w = g->Windows[i];
-        if (!w->Active || w->Hidden) continue;
+        if (!w->Active || w->Hidden || !w->WriteAccessed) continue;
         if (w->Flags & (ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_Tooltip)) continue;
+        if (strncmp(w->Name, "Debug##Default", 14) == 0) continue;   // implicit fallback window of ImGui (always "active")
         ImRect r = w->Rect();
         if (r.GetWidth() > io.DisplaySize.x * 0.97f && r.GetHeight() > io.DisplaySize.y * 0.97f) continue; // full-screen backdrops
         touch_ui_rect_add(r.Min.x / io.DisplaySize.x, r.Min.y / io.DisplaySize.y,
                           r.Max.x / io.DisplaySize.x, r.Max.y / io.DisplaySize.y);
+        logged++;
+    }
+    if (logged != last_logged) {   // debug aid: shows up in saturn_log.txt when the set of windows changes
+        last_logged = logged;
+        printf("touch: %d UI windows block game touches\n", logged);
     }
 }

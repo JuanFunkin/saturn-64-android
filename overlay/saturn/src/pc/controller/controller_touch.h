@@ -42,7 +42,7 @@ extern float touch_tool_x[2], touch_tool_y, touch_tool_r;
 extern int   touch_tool_down[2];
 int touch_take_action(void);          // returns and clears the last toolbar tap
 
-// hide state: 0 = everything visible, 1 = game buttons hidden (still active), 2 = everything hidden
+// hide state: 0 = everything visible, 1 = everything hidden (controls stay active; only a tiny dot is left)
 extern int   touch_hide_state;
 extern int   touch_enabled;           // the controls respond to touch (even when hidden)
 extern int   touch_edit;              // edit-layout mode
@@ -51,10 +51,12 @@ extern int   touch_menu_open;         // quick menu drawer open
 extern float touch_opacity;           // 0.1 - 1.0
 extern float touch_ui_mult;           // Saturn UI size multiplier
 extern int   touch_ui_capture;        // set by the UI: 1 if ImGui is using the touch
+extern int   touch_ui_popup_open;     // set by the UI: 1 if a Saturn menu/popup is open (it owns every touch)
 
 // Rectangles of the visible ImGui windows (normalized), so touches on them do not move Mario
 void touch_ui_rects_begin(void);
 void touch_ui_rect_add(float x0, float y0, float x1, float y1);
+int  touch_circle_overlaps_ui(float nx, float ny, float rx, float ry);  // rx, ry = radius in normalized x / y
 
 void touch_handle_event(const SDL_Event *e);
 void touch_layout_save(void);
