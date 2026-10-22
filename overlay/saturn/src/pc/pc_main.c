@@ -43,6 +43,7 @@
 #include <unistd.h>
 #include <SDL2/SDL.h>
 void android_debug_start(void);
+void android_init_paths(void);
 #endif
 
 #ifdef DISCORDRPC
@@ -309,11 +310,9 @@ void handle_segfault(int signal) {
 int main(int argc, char *argv[]) {
     signal(SIGSEGV, handle_segfault);
 #ifdef __ANDROID__
-    // El ROM importado (sm64.z64) vive en la carpeta interna de la app; saturn_rom_extract lo busca en el directorio actual.
-    {
-        const char *internal = SDL_AndroidGetInternalStoragePath();
-        if (internal) chdir(internal);
-    }
+    // Saturn's data folder (/storage/emulated/0/com.saturn64) becomes the working directory:
+    // sm64.z64, dynos/, res/, config, saves and logs all live there.
+    android_init_paths();
     android_debug_start();
 #endif
     parse_cli_opts(argc, argv);

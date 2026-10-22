@@ -10,16 +10,27 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * Copia las carpetas que Saturn lee desde el directorio actual (dynos, fonts, textures)
- * desde los assets del APK a la carpeta interna de la app. No sobrescribe archivos
- * que ya existen (asi no se pierden proyectos ni ajustes del usuario).
+ * Copies the folders Saturn reads from its working directory (dynos, fonts, textures) from the APK assets
+ * into Saturn's data folder. Existing files are never overwritten, so the user's own models, textures,
+ * packs and projects are kept. Also creates the (possibly empty) folders Saturn expects to exist:
+ * git does not store empty folders and the APK packer drops ".gitkeep", so they would be missing otherwise.
  */
 final class AssetInstaller {
     private static final String[] TOP = { "dynos", "fonts", "textures", "imgui.ini" };
 
+    private static final String[] REQUIRED_DIRS = {
+        "res",
+        "dynos", "dynos/macros", "dynos/packs", "dynos/projects", "dynos/anims",
+        "dynos/themes", "dynos/eyes", "dynos/colorcodes", "dynos/textures",
+        "textures"
+    };
+
     static void install(AssetManager am, File dest) throws IOException {
         for (String name : TOP) {
             copy(am, name, new File(dest, name));
+        }
+        for (String d : REQUIRED_DIRS) {
+            new File(dest, d).mkdirs();
         }
     }
 
@@ -40,7 +51,7 @@ final class AssetInstaller {
             int n;
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
         } catch (FileNotFoundException e) {
-            dst.mkdirs(); // era una carpeta vacia
+            dst.mkdirs(); // it was an empty folder
         }
     }
 

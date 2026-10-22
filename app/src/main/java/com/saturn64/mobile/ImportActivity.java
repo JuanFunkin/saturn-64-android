@@ -1,13 +1,18 @@
 package com.saturn64.mobile;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.View;
@@ -27,24 +32,123 @@ import java.io.RandomAccessFile;
 import java.util.zip.CRC32;
 
 /**
- * Start screen: Saturn background + logo, "Import ROM" opens the phone's file picker.
- * The ROM is copied to the app's internal folder as "sm64.z64" (the name expected by
- * saturn_rom_extract.cpp) and verified (size + CRC32), exactly like Saturn does on PC.
+ * Start screen (Saturn background + logo).
+ *
+ * - Saturn keeps ALL its files (dynos, models, textures, res, config, saves, logs) in
+ *   /storage/emulated/0/com.saturn64, like the PC version. This needs "All files access".
+ *   If the user refuses, the app falls back to its private storage.
+ * - "Import ROM" opens the phone's file picker; the ROM is copied to <data>/sm64.z64 and verified
+ *   (size + CRC32). Saturn extracts the assets from it on the first run.
+ * - Once the assets are extracted (marker res/.extracted written by Saturn), this screen is skipped on
+ *   later launches and the game starts directly. If the last run crashed (crash.txt exists) the screen is
+ *   shown again so the debug log can be saved.
  */
 public class ImportActivity extends Activity {
 
     private static final int REQ_PICK_ROM = 1001;
     private static final int REQ_SAVE_LOG = 1002;
+    private static final int REQ_STORAGE = 1003;
     private static final long ROM_SIZE = 8L * 1024 * 1024;
     private static final long ROM_CRC32 = 0x3CE60709L;
+    private static final String DATA_FOLDER = "com.saturn64";
 
     private TextView status;
     private Button importButton;
     private Button continueButton;
 
-    private File romFile() {
-        return new File(getFilesDir(), "sm64.z64");
+    private boolean busy = false;        // an import / preparation is running
+    private boolean launching = false;   // the game is being started
+    private boolean noAutoLaunch = false;
+
+    // ------------------------------------------------------------------ storage
+
+    private SharedPreferences prefs() {
+        return getSharedPreferences("saturn", MODE_PRIVATE);
     }
+
+    private boolean usePrivate() {
+        return prefs().getBoolean("private_storage", false);
+    }
+
+    private boolean hasExternalAccess() {
+        if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
+        if (Build.VERSION.SDK_INT >= 23) {
+            return checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    private boolean storageReady() {
+        return usePrivate() || hasExternalAccess();
+    }
+
+    private File dataDir() {
+        if (!usePrivate() && hasExternalAccess()) {
+            return new File(Environment.getExternalStorageDirectory(), DATA_FOLDER);
+        }
+        return getFilesDir();
+    }
+
+    /** Creates the data folder and tells the native side where it is (datadir.txt). */
+    private void prepareDataDir() {
+        File d = dataDir();
+        d.mkdirs();
+        if (!d.isDirectory() || !d.canWrite()) {
+            prefs().edit().putBoolean("private_storage", true).apply();
+            d = getFilesDir();
+        }
+        try (OutputStream out = new FileOutputStream(new File(getFilesDir(), "datadir.txt"))) {
+            out.write(d.getAbsolutePath().getBytes("UTF-8"));
+        } catch (IOException e) {
+            // the native side falls back to the internal folder
+        }
+        migrateOldRom(d);
+    }
+
+    /** Earlier builds kept the ROM in the private folder: reuse it so it does not have to be imported again. */
+    private void migrateOldRom(File dir) {
+        File old = new File(getFilesDir(), "sm64.z64");
+        File dst = new File(dir, "sm64.z64");
+        if (dir.equals(getFilesDir()) || dst.exists() || !old.exists() || old.length() != ROM_SIZE) return;
+        try (InputStream in = new java.io.FileInputStream(old); OutputStream out = new FileOutputStream(dst)) {
+            byte[] buf = new byte[64 * 1024];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        } catch (IOException e) {
+            dst.delete();
+        }
+    }
+
+    private void requestStorageAccess() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            Intent i = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            try {
+                startActivityForResult(i, REQ_STORAGE);
+            } catch (Exception e) {
+                startActivityForResult(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION), REQ_STORAGE);
+            }
+        } else if (Build.VERSION.SDK_INT >= 23) {
+            requestPermissions(new String[] { Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.READ_EXTERNAL_STORAGE }, REQ_STORAGE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        refreshUi();
+    }
+
+    private File romFile() {
+        return new File(dataDir(), "sm64.z64");
+    }
+
+    private File extractedMarker() {
+        return new File(new File(dataDir(), "res"), ".extracted");
+    }
+
+    // ------------------------------------------------------------------ UI
 
     private int dp(int v) {
         return Math.round(v * getResources().getDisplayMetrics().density);
@@ -75,32 +179,29 @@ public class ImportActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 
-        // Saturn background + logo
         ImageView bg = new ImageView(this);
         bg.setImageResource(R.drawable.saturn_bg);
         bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(bg, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Dark gradient at the bottom so the text and buttons are readable
         View shade = new View(this);
         GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] { 0x00000000, 0xE6000000 });
         shade.setBackground(g);
         FrameLayout.LayoutParams shadeLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, 0, Gravity.BOTTOM);
-        shadeLp.height = Math.round(getResources().getDisplayMetrics().heightPixels * 0.42f);
+        shadeLp.height = Math.round(getResources().getDisplayMetrics().heightPixels * 0.50f);
         root.addView(shade, shadeLp);
 
-        // Status text + buttons
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(dp(24), dp(8), dp(24), dp(22));
+        box.setPadding(dp(24), dp(8), dp(24), dp(18));
 
         status = new TextView(this);
         status.setTextColor(Color.WHITE);
-        status.setTextSize(16);
+        status.setTextSize(15);
         status.setGravity(Gravity.CENTER);
         status.setShadowLayer(6f, 0f, 2f, Color.BLACK);
         LinearLayout.LayoutParams stLp = new LinearLayout.LayoutParams(
@@ -113,14 +214,14 @@ public class ImportActivity extends Activity {
         row.setGravity(Gravity.CENTER);
 
         importButton = makeButton("Import ROM");
-        importButton.setOnClickListener(v -> openPicker());
+        importButton.setOnClickListener(v -> onImportClicked());
         LinearLayout.LayoutParams bLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         bLp.rightMargin = dp(10);
         row.addView(importButton, bLp);
 
         continueButton = makeButton("Continue");
-        continueButton.setOnClickListener(v -> startEngine());
+        continueButton.setOnClickListener(v -> onContinueClicked());
         LinearLayout.LayoutParams cLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         cLp.leftMargin = dp(10);
@@ -137,12 +238,18 @@ public class ImportActivity extends Activity {
         logButton.setOnClickListener(v -> saveLog());
         LinearLayout.LayoutParams lgLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        lgLp.topMargin = dp(6);
+        lgLp.topMargin = dp(4);
         box.addView(logButton, lgLp);
+
         root.addView(box, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM));
 
         setContentView(root);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
         refreshUi();
     }
 
@@ -152,17 +259,60 @@ public class ImportActivity extends Activity {
     }
 
     private void refreshUi() {
-        File f = romFile();
-        boolean ready = f.exists() && f.length() == ROM_SIZE;
-        if (ready) {
+        if (launching || busy) return;
+
+        if (!storageReady()) {
+            status.setText("Saturn keeps its files (models, textures, DynOS packs...) in /storage/emulated/0/"
+                    + DATA_FOLDER + ", like on PC. Allow access to all files to continue.");
+            importButton.setText("Grant access");
+            continueButton.setText("Use private storage");
+            setEnabledLook(importButton, true);
+            setEnabledLook(continueButton, true);
+            return;
+        }
+
+        prepareDataDir();
+        File crash = new File(dataDir(), "crash.txt");
+        boolean extracted = extractedMarker().exists();
+
+        // The ROM was already loaded on a previous run: go straight to the game.
+        if (extracted && !crash.exists() && !noAutoLaunch) {
+            startEngine();
+            return;
+        }
+
+        File rom = romFile();
+        boolean romReady = rom.exists() && rom.length() == ROM_SIZE;
+        boolean canContinue = romReady || extracted;
+
+        if (crash.exists()) {
+            status.setText("Saturn closed unexpectedly last time. You can save the debug log below, or continue.");
+        } else if (canContinue) {
             status.setText("ROM ready.");
-            importButton.setText("Import another ROM");
         } else {
             status.setText("Import your Super Mario 64 ROM (US, .z64) to get started.");
-            importButton.setText("Import ROM");
         }
+        importButton.setText(canContinue ? "Import another ROM" : "Import ROM");
+        continueButton.setText("Continue");
         setEnabledLook(importButton, true);
-        setEnabledLook(continueButton, ready);
+        setEnabledLook(continueButton, canContinue);
+    }
+
+    private void onImportClicked() {
+        if (!storageReady()) {
+            requestStorageAccess();
+        } else {
+            openPicker();
+        }
+    }
+
+    private void onContinueClicked() {
+        if (!storageReady()) {
+            prefs().edit().putBoolean("private_storage", true).apply();
+            refreshUi();
+        } else {
+            startEngine();
+        }
     }
 
     private void openPicker() {
@@ -183,15 +333,18 @@ public class ImportActivity extends Activity {
             return;
         }
         final Uri uri = data.getData();
+        busy = true;
         status.setText("Importing and verifying...");
         setEnabledLook(importButton, false);
         setEnabledLook(continueButton, false);
         new Thread(() -> {
             final String error = importRom(uri);
             runOnUiThread(() -> {
+                busy = false;
                 if (error != null) {
                     Toast.makeText(this, error, Toast.LENGTH_LONG).show();
                 }
+                noAutoLaunch = true; // let the user press Continue after importing
                 refreshUi();
             });
         }).start();
@@ -199,7 +352,9 @@ public class ImportActivity extends Activity {
 
     /** Returns null on success, or the error message. */
     private String importRom(Uri uri) {
-        File tmp = new File(getFilesDir(), "sm64.import.tmp");
+        File dir = dataDir();
+        dir.mkdirs();
+        File tmp = new File(dir, "sm64.import.tmp");
         try (InputStream in = getContentResolver().openInputStream(uri);
              OutputStream out = new FileOutputStream(tmp)) {
             if (in == null) return "Could not open the file.";
@@ -242,29 +397,38 @@ public class ImportActivity extends Activity {
     }
 
     private void startEngine() {
+        if (launching) return;
+        launching = true;
+        busy = true;
         status.setText("Preparing Saturn files...");
         setEnabledLook(importButton, false);
         setEnabledLook(continueButton, false);
+        final File dir = dataDir();
         new Thread(() -> {
             String error = null;
             try {
-                AssetInstaller.install(getAssets(), getFilesDir());
+                AssetInstaller.install(getAssets(), dir);
+                new File(dir, "crash.txt").delete(); // the previous crash has been acknowledged
             } catch (IOException e) {
                 error = "Error preparing the files: " + e.getMessage();
             }
             final String err = error;
             runOnUiThread(() -> {
                 if (err != null) {
+                    launching = false;
+                    busy = false;
+                    noAutoLaunch = true;
                     Toast.makeText(this, err, Toast.LENGTH_LONG).show();
+                    refreshUi();
                 } else {
                     startActivity(new Intent(this, SaturnActivity.class));
+                    finish();
                 }
-                refreshUi();
             });
         }).start();
     }
 
-    // ---- Debug log (so crashes can be shared) ----
+    // ------------------------------------------------------------------ debug log
 
     private void saveLog() {
         Intent i = new Intent(Intent.ACTION_CREATE_DOCUMENT);
@@ -289,13 +453,15 @@ public class ImportActivity extends Activity {
     }
 
     private void writeLog(Uri uri) {
+        File dir = dataDir();
         StringBuilder sb = new StringBuilder();
         sb.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
         sb.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
-        sb.append("ABIs: ").append(TextUtils.join(", ", Build.SUPPORTED_ABIS)).append("\n\n");
-        sb.append("===== crash.txt =====\n").append(tail(new File(getFilesDir(), "crash.txt"), 20000));
-        sb.append("\n===== saturn_log.txt (last run) =====\n").append(tail(new File(getFilesDir(), "saturn_log.txt"), 150000));
-        sb.append("\n===== saturn_log_prev.txt (run before) =====\n").append(tail(new File(getFilesDir(), "saturn_log_prev.txt"), 40000));
+        sb.append("ABIs: ").append(TextUtils.join(", ", Build.SUPPORTED_ABIS)).append('\n');
+        sb.append("Data folder: ").append(dir.getAbsolutePath()).append("\n\n");
+        sb.append("===== crash.txt =====\n").append(tail(new File(dir, "crash.txt"), 20000));
+        sb.append("\n===== saturn_log.txt (last run) =====\n").append(tail(new File(dir, "saturn_log.txt"), 150000));
+        sb.append("\n===== saturn_log_prev.txt (run before) =====\n").append(tail(new File(dir, "saturn_log_prev.txt"), 40000));
         try (OutputStream out = getContentResolver().openOutputStream(uri)) {
             if (out == null) throw new IOException("no output stream");
             out.write(sb.toString().getBytes("UTF-8"));

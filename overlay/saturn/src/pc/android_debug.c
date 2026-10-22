@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #endif
 #include <android/log.h>
+#include <SDL2/SDL.h>
 #include <dlfcn.h>
 #include <pthread.h>
 #include <signal.h>
@@ -17,6 +18,33 @@
 #include <string.h>
 #include <unistd.h>
 #include <unwind.h>
+
+// Folder where Saturn keeps everything (dynos, res, config, saves, logs). The Java side writes its path to
+// "<internal files>/datadir.txt" (normally /storage/emulated/0/com.saturn64). Falls back to the internal folder.
+char android_data_dir[1024] = { 0 };
+
+void android_init_paths(void) {
+    const char *internal = SDL_AndroidGetInternalStoragePath();
+    char path[1024] = { 0 };
+    if (internal) {
+        char cfg[1200];
+        snprintf(cfg, sizeof(cfg), "%s/datadir.txt", internal);
+        FILE *f = fopen(cfg, "r");
+        if (f) {
+            if (fgets(path, sizeof(path), f)) {
+                size_t n = strlen(path);
+                while (n > 0 && (path[n - 1] == '\n' || path[n - 1] == '\r' || path[n - 1] == ' ')) path[--n] = 0;
+            }
+            fclose(f);
+        }
+    }
+    if (path[0] && chdir(path) == 0) {
+        strncpy(android_data_dir, path, sizeof(android_data_dir) - 1);
+    } else if (internal) {
+        chdir(internal);
+        strncpy(android_data_dir, internal, sizeof(android_data_dir) - 1);
+    }
+}
 
 static FILE *g_log = NULL;
 static int g_pipe[2];

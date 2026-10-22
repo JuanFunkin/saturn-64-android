@@ -505,6 +505,12 @@ int saturn_extract_rom(int type) {
     }
     extraction_progress = 1;
     std::cout << "extraction finished" << std::endl;
+#ifdef __ANDROID__
+    {   // marker used by the Android launcher to skip the "import ROM" screen on later launches
+        std::ofstream marker(std::filesystem::path(sys_user_path()) / "res" / ".extracted");
+        marker << "ok";
+    }
+#endif
     gfx_precache_textures();
     return ROM_OK;
 }
