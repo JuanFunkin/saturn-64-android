@@ -108,7 +108,9 @@ unsigned char* read_mio0(unsigned char* buf) {
     int comp_idx = 0;
     int uncomp_idx = 0;
     mio0_header head = read_mio0_header(buf);
-    unsigned char* out = (unsigned char*)malloc(head.dest_size);
+    // The copy loop below can write a few bytes past dest_size, and the skybox/image decoders read past the end of a
+    // block: keep generous zeroed padding (an out-of-bounds access crashes on Android's hardened allocator).
+    unsigned char* out = (unsigned char*)calloc(1, (size_t)head.dest_size + 0x40000);
     while (bytes_written < head.dest_size) {
         if ((&buf[16])[bit_idx / 8] & (1 << (7 - (bit_idx % 8)))) {
             out[bytes_written] = buf[head.uncomp_offset + uncomp_idx];
@@ -243,19 +245,21 @@ unsigned char* raw2i(unsigned char* raw, int width, int height, int depth) {
 unsigned char* raw2skybox(unsigned char* raw, int len, int use_bitfs) {
     int table_index = len - 8 * 10 * 4;
     unsigned int table[80];
+    if (table_index < 0) return (unsigned char*)calloc(1, 80 * 32 * 32 * 4);
     for (int i = 0; i < 80; i++) {
         table[i] = (raw[table_index + i * 4 + 0] << 24) |
                    (raw[table_index + i * 4 + 1] << 16) |
                    (raw[table_index + i * 4 + 2] <<  8) |
                    (raw[table_index + i * 4 + 3] <<  0);
     }
-    unsigned char* skybox = (unsigned char*)malloc(80 * 32 * 32 * 4);
+    unsigned char* skybox = (unsigned char*)calloc(1, 80 * 32 * 32 * 4);
     unsigned int base = table[0];
     for (int i = 0; i < 80; i++) {
         // for some reason the bitfs ptr table is completely fucked
         table[i] = use_bitfs ? bitfs_ptrtable[i] * 0x800 : table[i] - base;
     }
     for (int i = 0; i < 80; i++) {
+        if ((long long)table[i] + 32 * 32 * 2 > (long long)len) continue;   // invalid offset: leave this tile blank
         decode_image(skybox + i * 32 * 32 * 4, raw + table[i], 32 * 32, {
             RANGE(0 , 5),
             RANGE(5 , 5),
@@ -433,7 +437,7 @@ int saturn_extract_rom(int type) {
     }
     extraction_progress = 0;
     std::ifstream stream = std::ifstream("sm64.z64", std::ios::binary);
-    unsigned char* data = (unsigned char*)malloc(1024 * 1024 * 8);
+    unsigned char* data = (unsigned char*)calloc(1, 1024 * 1024 * 8 + 0x40000);
     stream.read((char*)data, 1024 * 1024 * 8);
     stream.close();
     std::map<int, unsigned char*> mio0 = {};

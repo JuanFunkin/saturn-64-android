@@ -718,6 +718,21 @@ char saturnProjectFilename[257] = "Project";
 int current_project_id;
 
 #ifdef __ANDROID__
+// Menu-bar popups taller than the screen get pushed up and end up on top of their own tab (tapping "Game" hit
+// "Limit FPS"). Cap their height to the space below the bar; the content scrolls (drag with the finger).
+static void mobile_menu_limit(const char *label) {
+    if (!ImGui::IsPopupOpen(label)) return;
+    float top = ImGui::GetWindowPos().y + ImGui::GetWindowHeight();
+    float maxh = ImGui::GetIO().DisplaySize.y - top - 6.f;
+    if (maxh < 80.f) maxh = 80.f;
+    ImGui::SetNextWindowSizeConstraints(ImVec2(0.f, 0.f), ImVec2(3.4e38f, maxh));
+}
+#define MBEGIN_MENU(label) (mobile_menu_limit(label), ImGui::BeginMenu(label))
+#else
+#define MBEGIN_MENU(label) ImGui::BeginMenu(label)
+#endif
+
+#ifdef __ANDROID__
 // Credit line drawn under "Created by sm64rise" on Saturn's splash screen (only after the ROM is loaded).
 extern float extraction_progress;
 extern "C" void android_set_status(int pct, const char *msg);
@@ -767,7 +782,7 @@ void saturn_imgui_update() {
 
     if (showMenu) {
         if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("Menu")) {
+            if (MBEGIN_MENU("Menu")) {
                 windowCcEditor = false;
 
                 if (ImGui::MenuItem(ICON_FK_WINDOW_MAXIMIZE " Show UI",      translate_bind_to_name(configKeyShowMenu[0]), showMenu)) showMenu = !showMenu;
@@ -889,7 +904,7 @@ void saturn_imgui_update() {
                 ImGui::EndMenu();
             }
 
-            if (ImGui::BeginMenu("Camera")) {
+            if (MBEGIN_MENU("Camera")) {
                 windowCcEditor = false;
 
                 ImGui::Checkbox("Freeze", &camera_frozen);
@@ -983,11 +998,11 @@ void saturn_imgui_update() {
                 ImGui::EndMenu();
             }
 
-            if (ImGui::BeginMenu("Appearance")) {
+            if (MBEGIN_MENU("Appearance")) {
                 sdynos_imgui_menu();
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu("Game")) {
+            if (MBEGIN_MENU("Game")) {
                 imgui_machinima_quick_options();
                 ImGui::EndMenu();
             }

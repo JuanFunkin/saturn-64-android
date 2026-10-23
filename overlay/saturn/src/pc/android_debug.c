@@ -125,7 +125,10 @@ static void crash_handler(int sig, siginfo_t *info, void *ucontext) {
         emit(f, line);
     }
     if (f) fclose(f);
-    // SA_RESETHAND restored the default action; returning lets the process die normally.
+    if (g_log) fflush(g_log);
+    // ART's signal chain does not honour SA_RESETHAND: returning would re-run the faulting instruction and call this
+    // handler forever (the app looked "stuck"). Leave the process now.
+    _exit(128 + sig);
 }
 
 void android_debug_start(void) {
