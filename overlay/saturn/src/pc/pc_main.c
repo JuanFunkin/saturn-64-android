@@ -44,6 +44,7 @@
 #include <SDL2/SDL.h>
 void android_debug_start(void);
 void android_init_paths(void);
+void android_set_status(int pct, const char *msg);
 #endif
 
 #ifdef DISCORDRPC
@@ -314,6 +315,7 @@ int main(int argc, char *argv[]) {
     // sm64.z64, dynos/, res/, config, saves and logs all live there.
     android_init_paths();
     android_debug_start();
+    android_set_status(0, "Starting Saturn...");
 #endif
     parse_cli_opts(argc, argv);
 

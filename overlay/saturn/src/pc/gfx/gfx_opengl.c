@@ -647,6 +647,12 @@ static void gfx_opengl_init(void) {
     int vmajor, vminor;
     bool is_es = false;
     gl_get_version(&vmajor, &vminor, &is_es);
+#ifdef __ANDROID__
+    printf("GL vendor: %s\n", (const char *)glGetString(GL_VENDOR));
+    printf("GL renderer: %s\n", (const char *)glGetString(GL_RENDERER));
+    printf("GL version: %s\n", (const char *)glGetString(GL_VERSION));
+    printf("GL glsl: %s\n", (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION));
+#endif
     if (vmajor < 2 && vminor < 1 && !is_es)
         sys_fatal("OpenGL 2.1+ is required.\nReported version: %s%d.%d", is_es ? "ES" : "", vmajor, vminor);
 

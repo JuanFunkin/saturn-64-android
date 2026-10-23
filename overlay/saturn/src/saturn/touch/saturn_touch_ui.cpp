@@ -1,5 +1,5 @@
-// Touch HUD for Saturn 64 Mobile: game buttons, stick, toolbar (eye + menu), quick menu drawer and the
-// layout editor. Called once per frame from saturn_imgui_update(), right before ImGui::Render().
+// Touch HUD for Saturn 64 Mobile: game buttons, stick, toolbar (eye + menu), touch menu and layout editor.
+// Called once per frame from saturn_imgui_update(), right before ImGui::Render().
 // Everything is drawn with ImGui's foreground draw list, so hiding the controls (or Saturn's UI) leaves the
 // game image clean for screenshots and videos.
 
@@ -24,7 +24,7 @@ static ImU32 rgba(float r, float g, float b, float a) {
 
 struct Rgb { float r, g, b; };
 
-static Rgb button_color(int i) {
+static Rgb default_color(int i) {
     switch (i) {
         case TB_A:      return { 70.f, 120.f, 255.f };
         case TB_B:      return { 70.f, 200.f, 100.f };
@@ -35,6 +35,13 @@ static Rgb button_color(int i) {
     }
 }
 
+static Rgb button_color(int i) {
+    if (touch_buttons[i].use_color) return { (float)touch_buttons[i].cr, (float)touch_buttons[i].cg, (float)touch_buttons[i].cb };
+    return default_color(i);
+}
+
+static float luma(Rgb k) { return 0.299f * k.r + 0.587f * k.g + 0.114f * k.b; }
+
 static void draw_arrow(ImDrawList *dl, ImVec2 c, float s, float dx, float dy, ImU32 col) {
     float px = -dy, py = dx;
     ImVec2 tip(c.x + dx * s, c.y + dy * s);
@@ -43,23 +50,7 @@ static void draw_arrow(ImDrawList *dl, ImVec2 c, float s, float dx, float dy, Im
     dl->AddTriangleFilled(tip, b1, b2, col);
 }
 
-static void draw_game_button(ImDrawList *dl, ImVec2 c, float r, int idx, bool pressed, bool selected, bool disabled) {
-    float a = touch_opacity;
-    if (disabled) a *= 0.30f;
-    Rgb k = button_color(idx);
-    float rr = pressed ? r * 0.94f : r;
-    float lift = pressed ? 0.f : rr * 0.07f;
-
-    dl->AddCircleFilled(ImVec2(c.x, c.y + rr * 0.10f), rr, rgba(0, 0, 0, 0.35f * a), 40);                 // shadow
-    dl->AddCircleFilled(c, rr, rgba(k.r * 0.55f, k.g * 0.55f, k.b * 0.55f, a), 40);                       // dark rim
-    float boost = pressed ? 45.f : 0.f;
-    dl->AddCircleFilled(ImVec2(c.x, c.y - lift), rr * 0.88f, rgba(k.r + boost, k.g + boost, k.b + boost, a), 40); // face
-    dl->AddCircleFilled(ImVec2(c.x - rr * 0.24f, c.y - rr * 0.32f - lift), rr * 0.30f, rgba(255, 255, 255, 0.20f * a), 24); // shine
-    dl->AddCircle(c, rr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.55f * a), 40, selected ? 5.f : 2.f);
-
-    ImU32 ink = (idx == TB_Z || idx == TB_CUP || idx == TB_CDOWN || idx == TB_CLEFT || idx == TB_CRIGHT)
-                    ? rgba(40, 40, 55, a + 0.25f) : rgba(255, 255, 255, a + 0.25f);
-    ImVec2 fc(c.x, c.y - lift);
+static void draw_label(ImDrawList *dl, ImVec2 fc, float rr, int idx, ImU32 ink, float a) {
     float s = rr * 0.40f;
     if (idx == TB_CUP) draw_arrow(dl, fc, s, 0.f, -1.f, ink);
     else if (idx == TB_CDOWN) draw_arrow(dl, fc, s, 0.f, 1.f, ink);
@@ -71,9 +62,37 @@ static void draw_game_button(ImDrawList *dl, ImVec2 c, float r, int idx, bool pr
         float fs = rr * (idx == TB_START ? 0.46f : 0.95f);
         ImVec2 ts = font->CalcTextSizeA(fs, 100000.f, 0.f, label);
         ImVec2 p(fc.x - ts.x * 0.5f, fc.y - ts.y * 0.5f);
-        dl->AddText(font, fs, ImVec2(p.x + 1.5f, p.y + 1.5f), rgba(0, 0, 0, 0.5f * a), label);
+        dl->AddText(font, fs, ImVec2(p.x + 1.5f, p.y + 1.5f), rgba(0, 0, 0, 0.45f * a), label);
         dl->AddText(font, fs, p, ink, label);
     }
+}
+
+static void draw_game_button(ImDrawList *dl, ImVec2 c, float r, int idx, bool pressed, bool selected, bool disabled) {
+    float a = touch_opacity;
+    if (disabled) a *= 0.30f;
+    Rgb k = button_color(idx);
+    float rr = pressed ? r * 0.94f : r;
+
+    if (touch_style == 1) {
+        // Flat style (similar to sm64coopdx): translucent disc, white ring, solid white flash when pressed
+        dl->AddCircleFilled(c, rr, rgba(k.r, k.g, k.b, (pressed ? 0.90f : 0.45f) * a), 40);
+        dl->AddCircle(c, rr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.95f * a), 40,
+                      selected ? 5.f : (rr * 0.07f < 2.5f ? 2.5f : rr * 0.07f));
+        ImU32 ink = pressed ? rgba(20, 20, 30, a + 0.3f) : rgba(255, 255, 255, a + 0.3f);
+        draw_label(dl, c, rr, idx, ink, a);
+        return;
+    }
+
+    // Glossy style
+    float lift = pressed ? 0.f : rr * 0.07f;
+    dl->AddCircleFilled(ImVec2(c.x, c.y + rr * 0.10f), rr, rgba(0, 0, 0, 0.35f * a), 40);                 // shadow
+    dl->AddCircleFilled(c, rr, rgba(k.r * 0.55f, k.g * 0.55f, k.b * 0.55f, a), 40);                       // dark rim
+    float boost = pressed ? 45.f : 0.f;
+    dl->AddCircleFilled(ImVec2(c.x, c.y - lift), rr * 0.88f, rgba(k.r + boost, k.g + boost, k.b + boost, a), 40); // face
+    dl->AddCircleFilled(ImVec2(c.x - rr * 0.24f, c.y - rr * 0.32f - lift), rr * 0.30f, rgba(255, 255, 255, 0.20f * a), 24); // shine
+    dl->AddCircle(c, rr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.55f * a), 40, selected ? 5.f : 2.f);
+    ImU32 ink = luma(k) > 150.f ? rgba(40, 40, 55, a + 0.25f) : rgba(255, 255, 255, a + 0.25f);
+    draw_label(dl, ImVec2(c.x, c.y - lift), rr, idx, ink, a);
 }
 
 static void draw_stick(ImDrawList *dl, ImVec2 ds, bool selected) {
@@ -81,13 +100,19 @@ static void draw_stick(ImDrawList *dl, ImVec2 ds, bool selected) {
     float sr = touch_stick_size * ds.y;
     ImVec2 base = touch_stick_active ? ImVec2(touch_stick_ox * ds.x, touch_stick_oy * ds.y)
                                      : ImVec2(touch_stick_x * ds.x, touch_stick_y * ds.y);
+    Rgb kc = touch_stick_use_color ? Rgb{ (float)touch_stick_cr, (float)touch_stick_cg, (float)touch_stick_cb } : Rgb{ 235.f, 235.f, 245.f };
     dl->AddCircleFilled(base, sr, rgba(0, 0, 0, 0.28f * a), 48);
     dl->AddCircle(base, sr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.60f * a), 48, selected ? 5.f : 3.f);
     dl->AddCircle(base, sr * 0.55f, rgba(255, 255, 255, 0.18f * a), 48, 2.f);
     ImVec2 knob(base.x + touch_stick_dx * sr * 0.85f, base.y + touch_stick_dy * sr * 0.85f);
-    dl->AddCircleFilled(ImVec2(knob.x, knob.y + sr * 0.04f), sr * 0.42f, rgba(0, 0, 0, 0.35f * a), 32);
-    dl->AddCircleFilled(knob, sr * 0.42f, rgba(235, 235, 245, 0.80f * a), 32);
-    dl->AddCircleFilled(ImVec2(knob.x - sr * 0.10f, knob.y - sr * 0.13f), sr * 0.14f, rgba(255, 255, 255, 0.55f * a), 20);
+    if (touch_style == 1) {
+        dl->AddCircleFilled(knob, sr * 0.42f, rgba(kc.r, kc.g, kc.b, 0.55f * a), 32);
+        dl->AddCircle(knob, sr * 0.42f, rgba(255, 255, 255, 0.95f * a), 32, 3.f);
+    } else {
+        dl->AddCircleFilled(ImVec2(knob.x, knob.y + sr * 0.04f), sr * 0.42f, rgba(0, 0, 0, 0.35f * a), 32);
+        dl->AddCircleFilled(knob, sr * 0.42f, rgba(kc.r, kc.g, kc.b, 0.80f * a), 32);
+        dl->AddCircleFilled(ImVec2(knob.x - sr * 0.10f, knob.y - sr * 0.13f), sr * 0.14f, rgba(255, 255, 255, 0.55f * a), 20);
+    }
 }
 
 static void draw_toolbar(ImDrawList *dl, ImVec2 ds) {
@@ -123,38 +148,27 @@ static bool big_button(const char *label) {
     return ImGui::Button(label, ImVec2(-1.f, 44.f));
 }
 
-static void section_title(const char *text) {
-    ImGui::Spacing();
-    ImGui::TextColored(ImVec4(0.55f, 0.75f, 1.0f, 1.0f), "%s", text);
-    ImGui::Separator();
-}
-
+// Touch menu: uses Saturn's own theme (colours, title bar, close button) so it looks like the rest of the UI.
 static void draw_quick_menu(ImVec2 ds) {
     static bool was_open = false;
     if (!touch_menu_open) { was_open = false; return; }
     ImGui::SetNextWindowPos(ImVec2(0.f, 0.f), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(ds.x * 0.40f, ds.y), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.97f);
     if (!was_open) ImGui::SetNextWindowFocus();
     was_open = true;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.f);
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.f);
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.22f, 0.42f, 1.f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.32f, 0.58f, 1.f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.34f, 0.42f, 0.78f, 1.f));
-
+    bool open = true;
     ImGuiWindowFlags fl = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
-                          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
-    if (ImGui::Begin("##touch_quick_menu", NULL, fl)) {
-        // ---- touch controls first: this is what is needed most on a phone ----
-        section_title("TOUCH CONTROLS");
+                          ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::Begin("Touch menu###touch_quick_menu", &open, fl)) {
+        ImGui::TextDisabled("TOUCH CONTROLS");
+        ImGui::Separator();
         if (big_button("Hide controls (clean shot)###q_hide")) {
             touch_hide_state = 1;       // everything hidden; a tiny dot (top right) brings it back
             touch_menu_open = 0;
             touch_layout_save();
         }
-        if (big_button("Edit layout (move / resize)###q_edit")) {
+        if (big_button("Edit layout and colors###q_edit")) {
             touch_edit = 1;
             touch_selected = -2;
             touch_menu_open = 0;
@@ -165,8 +179,9 @@ static void draw_quick_menu(ImVec2 ds) {
         ImGui::SliderFloat("Interface size", &touch_ui_mult, 0.6f, 2.0f);
         ImGui::TextWrapped("Eye icon (top right): hide / show the controls.");
 
-        // ---- Saturn shortcuts ----
-        section_title("SATURN");
+        ImGui::Spacing();
+        ImGui::TextDisabled("SATURN");
+        ImGui::Separator();
         if (big_button(showMenu ? "Hide Saturn UI###q_ui" : "Show Saturn UI###q_ui")) showMenu = !showMenu;
         if (big_button("Settings###q_settings")) { windowSettings = !windowSettings; k_popout_open = false; }
         if (big_button("Timeline (keyframes)###q_timeline")) {
@@ -181,38 +196,69 @@ static void draw_quick_menu(ImVec2 ds) {
         }
         if (big_button(showStatusBars ? "Hide status bars###q_bars" : "Show status bars###q_bars")) showStatusBars = !showStatusBars;
         if (big_button(windowStats ? "Hide stats###q_stats" : "Show stats###q_stats")) windowStats = !windowStats;
-
-        ImGui::Spacing();
-        if (big_button("Close###q_close")) { touch_menu_open = 0; touch_layout_save(); }
     }
     ImGui::End();
-    ImGui::PopStyleColor(3);
-    ImGui::PopStyleVar(2);
+    if (!open) { touch_menu_open = 0; touch_layout_save(); }
+}
+
+static const float PALETTE[8][3] = {
+    { 70, 120, 255 }, { 70, 200, 100 }, { 255, 214, 64 }, { 235, 70, 70 },
+    { 165, 165, 178 }, { 255, 255, 255 }, { 255, 140, 40 }, { 170, 90, 220 }
+};
+
+// Colour chooser: 8 quick swatches + a full picker + "Default".
+static void color_chooser(unsigned char *cr, unsigned char *cg, unsigned char *cb, int *use, Rgb current) {
+    ImGui::TextUnformatted("Color");
+    for (int i = 0; i < 8; i++) {
+        ImGui::PushID(i);
+        if (ImGui::ColorButton("##sw", ImVec4(PALETTE[i][0] / 255.f, PALETTE[i][1] / 255.f, PALETTE[i][2] / 255.f, 1.f),
+                               ImGuiColorEditFlags_NoTooltip, ImVec2(34.f, 34.f))) {
+            *cr = (unsigned char)PALETTE[i][0]; *cg = (unsigned char)PALETTE[i][1]; *cb = (unsigned char)PALETTE[i][2];
+            *use = 1;
+        }
+        ImGui::PopID();
+        ImGui::SameLine();
+    }
+    float col[3] = { current.r / 255.f, current.g / 255.f, current.b / 255.f };
+    if (ImGui::ColorEdit3("##custom_color", col, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_PickerHueWheel)) {
+        *cr = (unsigned char)(col[0] * 255.f); *cg = (unsigned char)(col[1] * 255.f); *cb = (unsigned char)(col[2] * 255.f);
+        *use = 1;
+    }
+    if (ImGui::Button("Default color")) *use = 0;
 }
 
 static void draw_edit_panel(ImVec2 ds) {
     ImGui::SetNextWindowPos(ImVec2(ds.x * 0.5f, ds.y * 0.12f), ImGuiCond_Always, ImVec2(0.5f, 0.f));
-    ImGui::SetNextWindowBgAlpha(0.95f);
     ImGuiWindowFlags fl = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-                          ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoTitleBar;
-    if (ImGui::Begin("##touch_edit_panel", NULL, fl)) {
-        ImGui::TextUnformatted("Edit layout: drag a button to move it");
+                          ImGuiWindowFlags_NoSavedSettings;
+    if (ImGui::Begin("Edit touch controls###touch_edit_panel", NULL, fl)) {
+        ImGui::TextDisabled("Drag a button to move it");
         ImGui::Separator();
         if (touch_selected >= 0) {
-            ImGui::Text("Selected: %s", touch_buttons[touch_selected].name);
-            ImGui::SliderFloat("Size", &touch_buttons[touch_selected].size, 0.03f, 0.20f);
-            bool vis = touch_buttons[touch_selected].visible != 0;
-            if (ImGui::Checkbox("Show this button", &vis)) touch_buttons[touch_selected].visible = vis ? 1 : 0;
+            TouchButton &b = touch_buttons[touch_selected];
+            ImGui::Text("Selected: %s", b.name);
+            ImGui::SliderFloat("Size", &b.size, 0.03f, 0.20f);
+            bool vis = b.visible != 0;
+            if (ImGui::Checkbox("Show this button", &vis)) b.visible = vis ? 1 : 0;
+            color_chooser(&b.cr, &b.cg, &b.cb, &b.use_color, button_color(touch_selected));
         } else if (touch_selected == -1) {
             ImGui::TextUnformatted("Selected: stick");
             ImGui::SliderFloat("Size", &touch_stick_size, 0.08f, 0.35f);
+            color_chooser(&touch_stick_cr, &touch_stick_cg, &touch_stick_cb, &touch_stick_use_color,
+                          touch_stick_use_color ? Rgb{ (float)touch_stick_cr, (float)touch_stick_cg, (float)touch_stick_cb } : Rgb{ 235.f, 235.f, 245.f });
         } else {
-            ImGui::TextUnformatted("Tap a button or the stick.");
+            ImGui::TextUnformatted("Tap a button or the stick to edit it.");
         }
+        ImGui::Separator();
         ImGui::SliderFloat("Opacity", &touch_opacity, 0.15f, 1.0f);
+        ImGui::TextUnformatted("Style");
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Glossy", touch_style == 0)) touch_style = 0;
+        ImGui::SameLine();
+        if (ImGui::RadioButton("Flat", touch_style == 1)) touch_style = 1;
         if (ImGui::Button("Mirror")) touch_layout_mirror();
         ImGui::SameLine();
-        if (ImGui::Button("Reset")) { touch_layout_reset(); touch_selected = -2; }
+        if (ImGui::Button("Reset all")) { touch_layout_reset(); touch_selected = -2; }
         ImGui::SameLine();
         if (ImGui::Button("Done")) { touch_edit = 0; touch_selected = -2; touch_layout_save(); }
     }
@@ -240,9 +286,10 @@ extern "C" void saturn_touch_ui(void) {
         for (int i = 0; i < TB_COUNT; i++) {
             if (!touch_buttons[i].visible && !touch_edit) continue;
             float br = touch_buttons[i].size * ds.y;
+            // only big panels (side sheets, timeline, the touch menu) hide a button; bars and Stats never do
             if (!touch_edit && touch_circle_overlaps_ui(touch_buttons[i].x, touch_buttons[i].y, br / ds.x, br / ds.y)) continue;
             ImVec2 c(touch_buttons[i].x * ds.x, touch_buttons[i].y * ds.y);
-            draw_game_button(dl, c, touch_buttons[i].size * ds.y, i, touch_buttons[i].pressed != 0,
+            draw_game_button(dl, c, br, i, touch_buttons[i].pressed != 0,
                              touch_edit && touch_selected == i, touch_buttons[i].visible == 0);
         }
         float sr = touch_stick_size * ds.y;

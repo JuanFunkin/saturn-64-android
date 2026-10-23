@@ -26,6 +26,8 @@ typedef struct {
     int pressed;
     SDL_FingerID finger;
     int visible;          // 0 = this button is disabled/hidden for good (user choice)
+    unsigned char cr, cg, cb;   // custom colour (used when use_color != 0)
+    int use_color;
 } TouchButton;
 
 extern TouchButton touch_buttons[TB_COUNT];
@@ -35,6 +37,9 @@ extern float touch_stick_x, touch_stick_y, touch_stick_size;
 extern float touch_stick_ox, touch_stick_oy;
 extern float touch_stick_dx, touch_stick_dy;
 extern int   touch_stick_active;
+extern unsigned char touch_stick_cr, touch_stick_cg, touch_stick_cb;   // custom knob colour
+extern int   touch_stick_use_color;
+extern int   touch_style;             // 0 = glossy, 1 = flat (sm64coopdx-like)
 
 // Toolbar (always on screen): [0] = eye (hide/show buttons), [1] = menu
 enum { TA_NONE = 0, TA_EYE = 1, TA_MENU = 2 };
@@ -56,7 +61,7 @@ extern int   touch_ui_popup_open;     // set by the UI: 1 if a Saturn menu/popup
 // Rectangles of the visible ImGui windows (normalized), so touches on them do not move Mario
 void touch_ui_rects_begin(void);
 void touch_ui_rect_add(float x0, float y0, float x1, float y1);
-int  touch_circle_overlaps_ui(float nx, float ny, float rx, float ry);  // rx, ry = radius in normalized x / y
+int  touch_circle_overlaps_ui(float nx, float ny, float rx, float ry);  // only large "sheets" count; rx, ry = radius in normalized x / y
 
 void touch_handle_event(const SDL_Event *e);
 void touch_layout_save(void);

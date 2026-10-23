@@ -46,6 +46,15 @@ void android_init_paths(void) {
     }
 }
 
+// Status shown by the Java loading overlay (SaturnActivity): "<percent>\n<message>\n". percent < 0 hides it.
+void android_set_status(int pct, const char *msg) {
+    FILE *f = fopen("extract_status.txt", "w");
+    if (f) {
+        fprintf(f, "%d\n%s\n", pct, msg ? msg : "");
+        fclose(f);
+    }
+}
+
 static FILE *g_log = NULL;
 static int g_pipe[2];
 

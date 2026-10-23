@@ -55,6 +55,7 @@ public class ImportActivity extends Activity {
     private TextView status;
     private Button importButton;
     private Button continueButton;
+    private Button shareButton;
 
     private boolean busy = false;        // an import / preparation is running
     private boolean launching = false;   // the game is being started
@@ -227,6 +228,14 @@ public class ImportActivity extends Activity {
         cLp.leftMargin = dp(10);
         row.addView(continueButton, cLp);
 
+        shareButton = makeButton("Share log");
+        shareButton.setOnClickListener(v -> shareLog());
+        LinearLayout.LayoutParams shLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        shLp.leftMargin = dp(10);
+        row.addView(shareButton, shLp);
+        shareButton.setVisibility(View.GONE);
+
         box.addView(row);
 
         Button logButton = new Button(this);
@@ -273,10 +282,11 @@ public class ImportActivity extends Activity {
 
         prepareDataDir();
         File crash = new File(dataDir(), "crash.txt");
+        boolean abnormal = new File(getFilesDir(), "running.flag").exists();   // last run did not end normally
         boolean extracted = extractedMarker().exists();
 
         // The ROM was already loaded on a previous run: go straight to the game.
-        if (extracted && !crash.exists() && !noAutoLaunch) {
+        if (extracted && !crash.exists() && !abnormal && !noAutoLaunch) {
             startEngine();
             return;
         }
@@ -285,8 +295,9 @@ public class ImportActivity extends Activity {
         boolean romReady = rom.exists() && rom.length() == ROM_SIZE;
         boolean canContinue = romReady || extracted;
 
-        if (crash.exists()) {
-            status.setText("Saturn closed unexpectedly last time. You can save the debug log below, or continue.");
+        shareButton.setVisibility((crash.exists() || abnormal) ? View.VISIBLE : View.GONE);
+        if (crash.exists() || abnormal) {
+            status.setText("Saturn did not close normally last time. Tap \"Share log\" to send the log to the developer, or Continue to try again.");
         } else if (canContinue) {
             status.setText("ROM ready.");
         } else {
@@ -409,6 +420,7 @@ public class ImportActivity extends Activity {
             try {
                 AssetInstaller.install(getAssets(), dir);
                 new File(dir, "crash.txt").delete(); // the previous crash has been acknowledged
+                new File(getFilesDir(), "running.flag").delete();
             } catch (IOException e) {
                 error = "Error preparing the files: " + e.getMessage();
             }
@@ -452,22 +464,39 @@ public class ImportActivity extends Activity {
         }
     }
 
-    private void writeLog(Uri uri) {
+    private String buildLogText(int logBytes, int prevBytes, int crashBytes) {
         File dir = dataDir();
         StringBuilder sb = new StringBuilder();
         sb.append("Device: ").append(Build.MANUFACTURER).append(' ').append(Build.MODEL).append('\n');
         sb.append("Android: ").append(Build.VERSION.RELEASE).append(" (API ").append(Build.VERSION.SDK_INT).append(")\n");
         sb.append("ABIs: ").append(TextUtils.join(", ", Build.SUPPORTED_ABIS)).append('\n');
         sb.append("Data folder: ").append(dir.getAbsolutePath()).append("\n\n");
-        sb.append("===== crash.txt =====\n").append(tail(new File(dir, "crash.txt"), 20000));
-        sb.append("\n===== saturn_log.txt (last run) =====\n").append(tail(new File(dir, "saturn_log.txt"), 150000));
-        sb.append("\n===== saturn_log_prev.txt (run before) =====\n").append(tail(new File(dir, "saturn_log_prev.txt"), 40000));
+        sb.append("===== crash.txt =====\n").append(tail(new File(dir, "crash.txt"), crashBytes));
+        sb.append("\n===== saturn_log.txt (last run) =====\n").append(tail(new File(dir, "saturn_log.txt"), logBytes));
+        if (prevBytes > 0) {
+            sb.append("\n===== saturn_log_prev.txt (run before) =====\n").append(tail(new File(dir, "saturn_log_prev.txt"), prevBytes));
+        }
+        return sb.toString();
+    }
+
+    private void writeLog(Uri uri) {
+        String text = buildLogText(150000, 40000, 20000);
         try (OutputStream out = getContentResolver().openOutputStream(uri)) {
             if (out == null) throw new IOException("no output stream");
-            out.write(sb.toString().getBytes("UTF-8"));
+            out.write(text.getBytes("UTF-8"));
             Toast.makeText(this, "Log saved.", Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
             Toast.makeText(this, "Could not save the log: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    /** Shares the end of the log as plain text (WhatsApp, Telegram, e-mail...). */
+    private void shareLog() {
+        String text = buildLogText(30000, 0, 8000);
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, "Saturn 64 Android log");
+        send.putExtra(Intent.EXTRA_TEXT, text);
+        startActivity(Intent.createChooser(send, "Share log"));
     }
 }

@@ -720,8 +720,11 @@ int current_project_id;
 #ifdef __ANDROID__
 // Credit line drawn under "Created by sm64rise" on Saturn's splash screen (only after the ROM is loaded).
 extern float extraction_progress;
+extern "C" void android_set_status(int pct, const char *msg);
 static void saturn_android_splash_credit() {
     if (extraction_progress < 1.0f) return;
+    static bool status_cleared = false;
+    if (!status_cleared) { status_cleared = true; android_set_status(-1, ""); }
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplSDL2_NewFrame(window);
     saturn_mobile_begin_frame();

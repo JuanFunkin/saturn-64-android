@@ -16,6 +16,9 @@ float touch_stick_x, touch_stick_y, touch_stick_size;
 float touch_stick_ox, touch_stick_oy;
 float touch_stick_dx, touch_stick_dy;
 int   touch_stick_active = 0;
+unsigned char touch_stick_cr = 235, touch_stick_cg = 235, touch_stick_cb = 245;
+int   touch_stick_use_color = 0;
+int   touch_style = 0;
 
 float touch_tool_x[2] = { 0.835f, 0.915f };
 float touch_tool_y = 0.085f;
@@ -39,6 +42,7 @@ static SDL_FingerID drag_finger = 0;
 static int dragging = 0;
 
 static float ui_rects[MAX_UI_RECTS][4];
+static int ui_sheet[MAX_UI_RECTS];   // 1 = large panel (side sheet / timeline / our menu), 0 = bar / small window
 static int ui_rect_count = 0;
 
 void touch_ui_rects_begin(void) { ui_rect_count = 0; }
@@ -49,6 +53,7 @@ void touch_ui_rect_add(float x0, float y0, float x1, float y1) {
     ui_rects[ui_rect_count][1] = y0;
     ui_rects[ui_rect_count][2] = x1;
     ui_rects[ui_rect_count][3] = y1;
+    ui_sheet[ui_rect_count] = ((x1 - x0) >= 0.25f && (y1 - y0) >= 0.40f) ? 1 : 0;
     ui_rect_count++;
 }
 
@@ -61,6 +66,7 @@ static int point_in_ui(float nx, float ny) {
 
 int touch_circle_overlaps_ui(float nx, float ny, float rx, float ry) {
     for (int i = 0; i < ui_rect_count; i++) {
+        if (!ui_sheet[i]) continue;   // bars, Stats and small windows never hide the controls
         if (nx >= ui_rects[i][0] - rx && nx <= ui_rects[i][2] + rx && ny >= ui_rects[i][1] - ry && ny <= ui_rects[i][3] + ry) return 1;
     }
     return 0;
@@ -95,7 +101,11 @@ void touch_layout_reset(void) {
         touch_buttons[i].mask = def[i].mask;
         touch_buttons[i].pressed = 0;
         touch_buttons[i].visible = 1;
+        touch_buttons[i].use_color = 0;
+        touch_buttons[i].cr = touch_buttons[i].cg = touch_buttons[i].cb = 255;
     }
+    touch_stick_use_color = 0;
+    touch_style = 0;
     touch_stick_x = 0.14f;
     touch_stick_y = 0.70f;
     touch_stick_size = 0.17f;
@@ -114,10 +124,13 @@ void touch_layout_save(void) {
     fprintf(f, "version 2\n");
     fprintf(f, "opacity %f\n", touch_opacity);
     fprintf(f, "ui_mult %f\n", touch_ui_mult);
-    fprintf(f, "STICK %f %f %f 1\n", touch_stick_x, touch_stick_y, touch_stick_size);
+    fprintf(f, "style %d\n", touch_style);
+    fprintf(f, "STICK %f %f %f 1 %d %d %d\n", touch_stick_x, touch_stick_y, touch_stick_size,
+            touch_stick_use_color ? touch_stick_cr : -1, touch_stick_cg, touch_stick_cb);
     for (int i = 0; i < TB_COUNT; i++)
-        fprintf(f, "%s %f %f %f %d\n", touch_buttons[i].name, touch_buttons[i].x, touch_buttons[i].y,
-                touch_buttons[i].size, touch_buttons[i].visible);
+        fprintf(f, "%s %f %f %f %d %d %d %d\n", touch_buttons[i].name, touch_buttons[i].x, touch_buttons[i].y,
+                touch_buttons[i].size, touch_buttons[i].visible,
+                touch_buttons[i].use_color ? touch_buttons[i].cr : -1, touch_buttons[i].cg, touch_buttons[i].cb);
     fclose(f);
 }
 
@@ -134,14 +147,24 @@ void touch_layout_load(void) {
         if (sscanf(line, "version %d", &vis) == 1) { version = vis; continue; }
         if (sscanf(line, "opacity %f", &a) == 1) { touch_opacity = a; continue; }
         if (sscanf(line, "ui_mult %f", &a) == 1) { if (a >= 0.5f && a <= 2.5f) touch_ui_mult = a; continue; }
+        if (sscanf(line, "style %d", &vis) == 1) { touch_style = (vis == 1) ? 1 : 0; continue; }
         vis = 1;
-        int n = sscanf(line, "%31s %f %f %f %d", name, &a, &b, &c, &vis);
+        int cr = -1, cg = 0, cb = 0;
+        int n = sscanf(line, "%31s %f %f %f %d %d %d %d", name, &a, &b, &c, &vis, &cr, &cg, &cb);
         if (n >= 4) {
-            if (!strcmp(name, "STICK")) { touch_stick_x = a; touch_stick_y = b; touch_stick_size = c; continue; }
+            int has_color = (n >= 8 && cr >= 0 && cr <= 255);
+            if (!strcmp(name, "STICK")) {
+                touch_stick_x = a; touch_stick_y = b; touch_stick_size = c;
+                touch_stick_use_color = has_color;
+                if (has_color) { touch_stick_cr = (unsigned char)cr; touch_stick_cg = (unsigned char)cg; touch_stick_cb = (unsigned char)cb; }
+                continue;
+            }
             for (int i = 0; i < TB_COUNT; i++) {
                 if (!strcmp(name, touch_buttons[i].name)) {
                     touch_buttons[i].x = a; touch_buttons[i].y = b; touch_buttons[i].size = c;
                     touch_buttons[i].visible = (n >= 5) ? (vis != 0) : 1;
+                    touch_buttons[i].use_color = has_color;
+                    if (has_color) { touch_buttons[i].cr = (unsigned char)cr; touch_buttons[i].cg = (unsigned char)cg; touch_buttons[i].cb = (unsigned char)cb; }
                 }
             }
         }

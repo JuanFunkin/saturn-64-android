@@ -37,6 +37,10 @@ extern "C" {
 #include "pc/gfx/gfx_pc.h"
 }
 
+#ifdef __ANDROID__
+extern "C" void android_set_status(int pct, const char *msg);
+#endif
+
 std::string currently_extracting = "";
 
 enum FormatEnum {
@@ -442,6 +446,13 @@ int saturn_extract_rom(int type) {
     int count = 0;
     for (const auto& asset : assets) {
         extraction_progress = count++ / (float)assets.size();
+#ifdef __ANDROID__
+        {
+            static int last_pct = -1;
+            int pct = (int)(extraction_progress * 100.f);
+            if (pct != last_pct) { last_pct = pct; android_set_status(pct, "Extracting assets (first run only)..."); }
+        }
+#endif
         if (std::find(todo.begin(), todo.end(), asset.path) == todo.end()) continue;
         currently_extracting = asset.path;
         std::istringstream iss = std::istringstream(asset.path);
@@ -505,6 +516,9 @@ int saturn_extract_rom(int type) {
     }
     extraction_progress = 1;
     std::cout << "extraction finished" << std::endl;
+#ifdef __ANDROID__
+    android_set_status(100, "Loading Saturn...");
+#endif
 #ifdef __ANDROID__
     {   // marker used by the Android launcher to skip the "import ROM" screen on later launches
         std::ofstream marker(std::filesystem::path(sys_user_path()) / "res" / ".extracted");

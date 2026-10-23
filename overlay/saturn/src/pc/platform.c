@@ -148,6 +148,11 @@ const char *sys_user_path(void) {
 
 const char *sys_exe_path(void) {
     static char path[SYS_MAX_PATH] = { 0 };
+#ifdef __ANDROID__
+    // There is no "executable folder" on Android (SDL_GetBasePath returns nothing): DynOS looks for its packs in
+    // <exe path>/dynos/packs, so point it at Saturn's data folder (/storage/emulated/0/com.saturn64).
+    if (android_data_dir[0]) return android_data_dir;
+#endif
     char *sdlpath = SDL_GetBasePath();
     if (sdlpath && sdlpath[0]) {
         // use the SDL path if it exists
