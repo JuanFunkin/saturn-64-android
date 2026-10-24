@@ -16,4 +16,8 @@ typedef uint64_t audio_u64 __attribute__((aligned(8)));
 #define AUDIO_HOST_32 0
 #endif
 
+// The in-memory audio structs always have the 64-bit size (see above), so the audio heaps need the "64-bit" size on
+// 32-bit hosts too. (Same value as DOUBLE_SIZE_ON_64_BIT on 64-bit hosts.)
+#define AUDIO_DOUBLE_SIZE(size) ((size) * 2)
+
 #endif
