@@ -1,0 +1,232 @@
+--- a/src/saturn/imgui/saturn_imgui.cpp
++++ b/src/saturn/imgui/saturn_imgui.cpp
+@@ -41,10 +41,17 @@
+ #include "saturn/saturn_video_renderer.h"
+ #include "saturn/saturn_version.h"
+ #include "types.h"
++#ifndef __ANDROID__
+ #include "downloader.h"
++#else
++#include "saturn/touch/saturn_touch_api.h"
++#include "pc/android_support.h"
++#endif
+ 
+ #include <SDL2/SDL.h>
++#ifndef __ANDROID__
+ #include <zip.h>
++#endif
+ #ifdef _WIN32
+ #include <windows.h>
+ #else
+@@ -63,7 +70,10 @@
+ #endif
+ 
+ #define GL_GLEXT_PROTOTYPES 1
+-#ifdef USE_GLES
++#ifdef __ANDROID__
++# include <GLES3/gl3.h>
++# define RAPI_NAME "OpenGL ES 3"
++#elif defined(USE_GLES)
+ # include <SDL2/SDL_opengles2.h>
+ # define RAPI_NAME "OpenGL ES"
+ #else
+@@ -74,6 +84,9 @@
+ #if FOR_WINDOWS
+ #define PLATFORM "Windows"
+ #define PLATFORM_ICON ICON_FK_WINDOWS
++#elif defined(__ANDROID__)
++#define PLATFORM "Android"
++#define PLATFORM_ICON ICON_FK_ANDROID
+ #elif defined(OSX_BUILD)
+ #define PLATFORM "Mac OS"
+ #define PLATFORM_ICON ICON_FK_APPLE
+@@ -378,9 +391,11 @@
+     ImGuiStyle* style = &ImGui::GetStyle();
+ 
+     float SCALE = 1.f;
+-
+     if (initFont) {
+         initFont = false;
++#ifdef __ANDROID__
++        saturn_mobile_build_fonts(); // sharp fonts at the touch UI scale (see saturn_mobile_ui.cpp)
++#else
+ 
+         ImFontConfig defaultConfig;
+         defaultConfig.SizePixels = 13.0f * SCALE;
+@@ -392,6 +407,7 @@
+         symbolConfig.GlyphMinAdvanceX = 13.0f * SCALE; // Use if you want to make the icon monospaced
+         static const ImWchar icon_ranges[] = { ICON_MIN_FK, ICON_MAX_FK, 0 };
+         io.Fonts->AddFontFromFileTTF("fonts/forkawesome-webfont.ttf", symbolConfig.SizePixels, &symbolConfig, icon_ranges);
++#endif
+     }
+ 
+     // backwards compatibility with older theme settings
+@@ -417,6 +433,9 @@
+     imgui_custom_theme(editor_theme);
+ 
+     style->ScaleAllSizes(SCALE);
++#ifdef __ANDROID__
++    saturn_mobile_apply_style(style);
++#endif
+ }
+ 
+ int videores[] = { 1920, 1080 };
+@@ -529,6 +548,8 @@
+                 CloseClipboard();
+             }
+         }
++#elif defined(__ANDROID__)
++        // no clipboard images on Android; screenshots go to <data folder>/dynos/screenshots instead
+ #else
+         int outlen;
+         unsigned char* data = pngutils_write_png_to_mem((unsigned char*)image, 0, videores[0], videores[1], 4, &outlen);
+@@ -614,9 +635,25 @@
+     if (!processing_frame && !ui_only_frame && capturing_video && (do_capture || sixty_fps_enabled) && capture_buffer == 0) {
+         uint64_t tex_size = (uint64_t)videores[0] * (uint64_t)videores[1] * 4;
+         unsigned char* image = (unsigned char*)malloc(tex_size);
++#ifdef __ANDROID__
++        // OpenGL ES has no glGetTexImage: attach the texture to a temporary FBO and read it back.
++        {
++            GLint prev_fbo = 0;
++            glGetIntegerv(GL_FRAMEBUFFER_BINDING, &prev_fbo);
++            GLuint read_fbo = 0;
++            glGenFramebuffers(1, &read_fbo);
++            glBindFramebuffer(GL_FRAMEBUFFER, read_fbo);
++            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, (GLuint)(intptr_t)fb, 0);
++            glPixelStorei(GL_PACK_ALIGNMENT, 1);
++            glReadPixels(0, 0, videores[0], videores[1], GL_RGBA, GL_UNSIGNED_BYTE, image);
++            glBindFramebuffer(GL_FRAMEBUFFER, prev_fbo);
++            glDeleteFramebuffers(1, &read_fbo);
++        }
++#else
+         glBindTexture(GL_TEXTURE_2D, (GLuint)(intptr_t)fb);
+         glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+         glBindTexture(GL_TEXTURE_2D, 0);
++#endif
+         pthread_create(&capture_thread, NULL, saturn_capture_screenshot, image);
+         pthread_detach(capture_thread);
+     }
+@@ -645,7 +682,11 @@
+     ImGui::DockBuilderAddNode(dockspace, ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_DockSpace);
+     ImGui::DockBuilderSetNodeSize(dockspace, ImGui::GetWindowViewport()->Size);
+     ImGui::DockBuilderSplitNode(dockspace, ImGuiDir_Up, 0.7f, &up, &down);
++#ifdef __ANDROID__
++    ImGui::DockBuilderSplitNode(up, ImGuiDir_Left, 0.32f, &left, &right); // wider panels: fingers are bigger than a mouse pointer
++#else
+     ImGui::DockBuilderSplitNode(up, ImGuiDir_Left, 0.25f, &left, &right);
++#endif
+     ImGui::DockBuilderDockWindow("Machinima", left);
+     ImGui::DockBuilderDockWindow("Marios", left);
+     ImGui::DockBuilderDockWindow("Objects", left);
+@@ -694,7 +735,11 @@
+ 
+     imgui_config_exists = std::filesystem::exists("imgui.ini");
+ 
++#ifdef __ANDROID__
++    const char* glsl_version = "#version 300 es";
++#else
+     const char* glsl_version = "#version 120";
++#endif
+     ImGuiContext* imgui = ImGui::CreateContext();
+     ImGui::SetCurrentContext(imgui);
+     ImGuiIO& io = ImGui::GetIO();
+@@ -793,6 +838,14 @@
+ }
+ 
+ #ifdef _WIN32
++#ifdef __ANDROID__
++std::thread ffmpeg_download_thread;
++double ffmpeg_download_progress = 0;
++bool ffmpeg_download_failed = false;
++bool ffmpeg_download_in_progress = false;
++bool ffmpeg_install_in_progress = false;
++bool ffmpeg_install_restart = false;
++#else
+ std::thread ffmpeg_download_thread;
+ double ffmpeg_download_progress = 0;
+ bool ffmpeg_download_failed = false;
+@@ -877,6 +930,7 @@
+     ffmpeg_install_restart = true;
+ }
+ #endif
++#endif
+ 
+ bool update_available = false;
+ std::thread check_update_thread;
+@@ -896,6 +950,9 @@
+     if (!std::filesystem::exists(path)) return;
+ 
+ void saturn_check_update() {
++#ifdef __ANDROID__
++    return; // updates come from the APK, not from an updatetool
++#endif
+     GET_UPDATETOOL;
+     check_update_thread = std::thread([path, exe_path]() {
+         std::string cmd = "\"" + path.string() + "\" check \"" + exe_path + "\"";
+@@ -921,6 +978,9 @@
+ }
+ 
+ void saturn_do_update() {
++#ifdef __ANDROID__
++    return;
++#endif
+     GET_UPDATETOOL;
+     std::string cmd = "\"" + path.string() + "\" update \"" + exe_path + "\"";
+ #ifdef _WIN32
+@@ -948,8 +1008,13 @@
+     
+     saturn_load_project_list();
+ 
++#ifdef __ANDROID__
++    ffmpeg_installed = false;   // PNG sequence export only
++    clipboard_enabled = false;
++#else
+     ffmpeg_installed = does_command_exist("ffmpeg");
+     clipboard_enabled = can_write_to_clipboard();
++#endif
+ 
+     saturn_check_update();
+ }
+@@ -1189,7 +1254,19 @@
+ 
+ void saturn_imgui_update() {
+     if (!splash_finished) return;
++#ifdef __ANDROID__
++    static int android_frames = 0;
++    if (android_frames < 6) { char b[48]; snprintf(b, sizeof(b), "imgui frame %d", ++android_frames); android_breadcrumb(b); }
++    static bool android_ready_written = false;
++    if (!android_ready_written) { // tells the Java loading overlay that the editor is on screen
++        android_ready_written = true;
++        android_write_text_file("ready.flag", "1");
++    }
++#endif
+ 
++#ifdef __ANDROID__
++    saturn_mobile_begin_frame();
++#endif
+     ImGui_ImplOpenGL3_NewFrame();
+     ImGui_ImplSDL2_NewFrame(window);
+     ImGui::NewFrame();
+@@ -1493,7 +1570,12 @@
+         }
+         
+         if (ImGui::CollapsingHeader("Rendering")) {
++#ifdef __ANDROID__
++            ImGui::TextWrapped("Android exports frames as a PNG sequence into the com.saturnstudio folder. Join them into a video with any video editor.");
++            if (false) {
++#else
+             if (!ffmpeg_installed) {
++#endif
+                 ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 5.f);
+                 if (ImGui::BeginChild("###no_ffmpeg", ImVec2(0, 108), true, ImGuiWindowFlags_NoScrollbar)) {
+                     ImGui::Text("FFmpeg isn't installed, so most");
+@@ -1993,6 +2075,9 @@
+ 
+     is_cc_editing = windowCcEditor & support_color_codes & current_model.ColorCodeSupport;
+ 
++#ifdef __ANDROID__
++    saturn_mobile_draw();
++#endif
+     ImGui::Render();
+     GLint last_program;
+     glGetIntegerv(GL_CURRENT_PROGRAM, &last_program);

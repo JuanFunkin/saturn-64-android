@@ -1,0 +1,18 @@
+--- a/src/buffers/buffers.c
++++ b/src/buffers/buffers.c
+@@ -1,12 +1,13 @@
++#include "audio_ptr.h"
+ #include <ultra64.h>
+ 
+ #include "buffers.h"
+ 
+ ALIGNED8 u8 gDecompressionHeap[0xD000];
+ #if defined(VERSION_EU) || defined(VERSION_SH)
+-ALIGNED16 u8 gAudioHeap[DOUBLE_SIZE_ON_64_BIT(0x31200) - 0x3800];
++ALIGNED16 u8 gAudioHeap[AUDIO_DOUBLE_SIZE(0x31200) - 0x3800];
+ #else
+-ALIGNED16 u8 gAudioHeap[DOUBLE_SIZE_ON_64_BIT(0x31200)];
++ALIGNED16 u8 gAudioHeap[AUDIO_DOUBLE_SIZE(0x31200)];
+ #endif
+ 
+ ALIGNED8 u8 gIdleThreadStack[0x800];

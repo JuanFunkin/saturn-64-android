@@ -1,0 +1,119 @@
+--- a/src/pc/gfx/gfx_opengl.c
++++ b/src/pc/gfx/gfx_opengl.c
+@@ -23,7 +23,10 @@
+ 
+ #ifdef WAPI_SDL2
+ # include <SDL2/SDL.h>
+-# ifdef USE_GLES
++# ifdef __ANDROID__
++#  include <GLES3/gl3.h>
++#  include <GLES3/gl3ext.h>
++# elif defined(USE_GLES)
+ #  include <SDL2/SDL_opengles2.h>
+ # else
+ #  include <SDL2/SDL_opengl.h>
+@@ -42,6 +45,9 @@
+ #include "gfx_rendering_api.h"
+ 
+ #include "src/saturn/saturn.h"
++#ifdef __ANDROID__
++#include "../android_support.h"
++#endif
+ #include "src/saturn/imgui/saturn_imgui.h"
+ 
+ #define TEX_CACHE_STEP 512
+@@ -286,7 +292,11 @@
+     // Fragment shader
+ #ifdef USE_GLES
+     append_line(fs_buf, &fs_len, "#version 100");
++#ifdef __ANDROID__
++    append_line(fs_buf, &fs_len, "precision highp float;");
++#else
+     append_line(fs_buf, &fs_len, "precision mediump float;");
++#endif
+ #else
+     append_line(fs_buf, &fs_len, "#version 120");
+ #endif
+@@ -400,6 +410,9 @@
+     puts(fs_buf);
+     puts("End");*/
+ 
++#ifdef __ANDROID__
++    android_breadcrumb("opengl: compiling a shader");
++#endif
+     const GLchar *sources[2] = { vs_buf, fs_buf };
+     const GLint lengths[2] = { vs_len, fs_len };
+     GLint success;
+@@ -604,16 +617,22 @@
+ static void gfx_opengl_draw_triangles(float buf_vbo[], size_t buf_vbo_len, size_t buf_vbo_num_tris) {
+     //printf("flushing %d tris\n", buf_vbo_num_tris);
+     bool wireframe = wireframeMode || enableWireframe;
++#ifndef __ANDROID__ // OpenGL ES has no glPolygonMode: wireframe is unavailable on Android
+     if(wireframe){
+         glPolygonMode(GL_FRONT, GL_LINE);
+         glPolygonMode(GL_BACK, GL_LINE);
+     }
++#endif
+     glBufferData(GL_ARRAY_BUFFER, sizeof(float) * buf_vbo_len, buf_vbo, GL_STREAM_DRAW);
+     glDrawArrays(GL_TRIANGLES, 0, 3 * buf_vbo_num_tris);
++#ifndef __ANDROID__
+     if(wireframe){
+         glPolygonMode(GL_FRONT, GL_FILL);
+         glPolygonMode(GL_BACK, GL_FILL);
+     }
++#else
++    (void)wireframe;
++#endif
+ }
+ 
+ static inline bool gl_get_version(int *major, int *minor, bool *is_es) {
+@@ -678,11 +697,18 @@
+     
+     frame_count++;
+ 
++#ifdef __ANDROID__
++    configWindow.enable_antialias = false; // no multisampled textures in OpenGL ES 3.0
++#endif
+     if (configWindow.enable_antialias) {
++#ifndef __ANDROID__
+         glEnable(GL_MULTISAMPLE);
++#endif
+         //glEnable(GL_DITHER);
+     } else {
++#ifndef __ANDROID__
+         glDisable(GL_MULTISAMPLE);
++#endif
+         //glDisable(GL_DITHER);
+     }
+ 
+@@ -695,6 +721,7 @@
+ 
+     glGenFramebuffers(1, &framebuffer_id);
+     glBindFramebuffer(GL_FRAMEBUFFER, framebuffer_id);
++#ifndef __ANDROID__
+     if (configWindow.enable_antialias) {
+         glGenTextures(1, &rendertexture_id);
+         glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, rendertexture_id);
+@@ -705,7 +732,9 @@
+         glRenderbufferStorageMultisample(GL_RENDERBUFFER, 2, GL_DEPTH_COMPONENT, gfx_current_dimensions.width, gfx_current_dimensions.height);
+         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthbuffer_id);
+     }
+-    else {
++    else
++#endif
++    {
+         glGenTextures(1, &rendertexture_id);
+         glBindTexture(GL_TEXTURE_2D, rendertexture_id);
+         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, gfx_current_dimensions.width, gfx_current_dimensions.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+@@ -714,7 +743,11 @@
+         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, rendertexture_id, 0);
+         glGenRenderbuffers(1, &depthbuffer_id);
+         glBindRenderbuffer(GL_RENDERBUFFER, depthbuffer_id);
++#ifdef __ANDROID__
++        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, gfx_current_dimensions.width, gfx_current_dimensions.height);
++#else
+         glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, gfx_current_dimensions.width, gfx_current_dimensions.height);
++#endif
+         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthbuffer_id);
+     }
+ 

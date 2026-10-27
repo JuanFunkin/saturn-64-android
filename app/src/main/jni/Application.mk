@@ -1,4 +1,4 @@
-# 32 bits (armeabi-v7a) y 64 bits (arm64-v8a)
+# 32 bits (armeabi-v7a) and 64 bits (arm64-v8a)
 APP_ABI := armeabi-v7a arm64-v8a
 APP_PLATFORM := android-21
 APP_STL := c++_shared

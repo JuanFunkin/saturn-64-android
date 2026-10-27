@@ -1,0 +1,26 @@
+--- a/src/audio/seqplayer.c
++++ b/src/audio/seqplayer.c
+@@ -726,7 +726,7 @@
+                     cmd--;
+                 }
+ 
+-                drum = gCtlEntries[seqChannel->bankId].drums[cmd];
++                drum = AUDIO_ELEM(gCtlEntries[seqChannel->bankId].drums[cmd]);
+ #endif
+                 if (drum == NULL) {
+                     layer->stopSomething = TRUE;
+@@ -925,12 +925,12 @@
+         instId--;
+     }
+ 
+-    inst = gCtlEntries[seqChannel->bankId].instruments[instId];
++    inst = AUDIO_ELEM(gCtlEntries[seqChannel->bankId].instruments[instId]);
+     if (inst == NULL) {
+         struct SequenceChannel seqChannelCpy = *seqChannel;
+ 
+         while (instId != 0xff) {
+-            inst = gCtlEntries[seqChannelCpy.bankId].instruments[instId];
++            inst = AUDIO_ELEM(gCtlEntries[seqChannelCpy.bankId].instruments[instId]);
+             if (inst != NULL) {
+                 break;
+             }

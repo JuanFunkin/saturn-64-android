@@ -1,0 +1,155 @@
+--- a/src/saturn/saturn.cpp
++++ b/src/saturn/saturn.cpp
+@@ -1,4 +1,7 @@
+ #include "saturn.h"
++#ifdef __ANDROID__
++#include "saturn/touch/saturn_touch_api.h"
++#endif
+ 
+ #include <SDL2/SDL_keyboard.h>
+ #include <SDL2/SDL_scancode.h>
+@@ -494,8 +497,13 @@
+             if (inprec) { pan |= rotate; rotate = false; }
+             float *x = &mmove_x, *y = &mmove_y;
+             if (rotate) { x = &mrotate_x; y = &mrotate_y; }
++#ifdef __ANDROID__
++            *x = mouse_state.x_diff * saturn_touch_camera_sensitivity();
++            *y = mouse_state.y_diff * saturn_touch_camera_sensitivity();
++#else
+             *x = mouse_state.x_diff;
+             *y = mouse_state.y_diff;
++#endif
+             if (inprec) {
+                 *x *= 64 * configCamCtrlMouseRotSens * inv(configCamCtrlMouseInprecRotInvX);
+                 *y *= 64 * configCamCtrlMouseRotSens * inv(configCamCtrlMouseInprecRotInvY);
+@@ -716,6 +724,10 @@
+ 
+     bool should_do_mouse_action = mouse_state.dist_travelled <= 3 && mouse_state.released && mouse_state.focused_on_game && !saturn_actor_is_recording_input() && !saturn_imgui_is_orthographic();
+     if (saturn_imgui_is_capturing_video()) should_do_mouse_action = false;
++#ifdef __ANDROID__
++    // A finger tap only spawns / selects when the toolbar "tap" tool is on; camera gestures never click.
++    if (!saturn_touch_tap_enabled()) should_do_mouse_action = false;
++#endif
+ 
+     if (setting_mario_struct_pos) {
+         Vec3f dir, hit;
+@@ -1288,6 +1300,58 @@
+     }
+ }
+ 
++#ifdef __ANDROID__
++// Credit line drawn on the splash screen. There is no font library at this point, so the glyphs come from a
++// standalone Dear ImGui font atlas (built-in default font) copied into an SDL texture.
++#include "saturn/libs/imgui/imgui.h"
++static ImFontAtlas* credit_atlas = nullptr;
++static SDL_Texture* credit_tex = nullptr;
++static int credit_w = 0, credit_h = 0;
++
++static void splash_credit_init(SDL_Renderer* renderer) {
++    credit_atlas = new ImFontAtlas();
++    ImFontConfig cfg;
++    cfg.SizePixels = 13.0f;
++    credit_atlas->AddFontDefault(&cfg);
++    unsigned char* px = nullptr;
++    credit_atlas->GetTexDataAsAlpha8(&px, &credit_w, &credit_h);
++    if (!px) return;
++    SDL_Surface* surf = SDL_CreateRGBSurfaceWithFormat(0, credit_w, credit_h, 32, SDL_PIXELFORMAT_RGBA32);
++    if (!surf) return;
++    for (int y = 0; y < credit_h; y++) {
++        Uint8* row = (Uint8*)surf->pixels + y * surf->pitch;
++        for (int x = 0; x < credit_w; x++) {
++            row[x * 4 + 0] = 255; row[x * 4 + 1] = 255; row[x * 4 + 2] = 255;
++            row[x * 4 + 3] = px[y * credit_w + x];
++        }
++    }
++    credit_tex = SDL_CreateTextureFromSurface(renderer, surf);
++    SDL_FreeSurface(surf);
++    if (credit_tex) SDL_SetTextureBlendMode(credit_tex, SDL_BLENDMODE_BLEND);
++}
++
++static void splash_credit_draw(SDL_Renderer* renderer, const char* text, float center_x, float y, float scale) {
++    if (!credit_tex || !credit_atlas || credit_atlas->Fonts.Size == 0) return;
++    ImFont* font = credit_atlas->Fonts[0];
++    float width = 0;
++    for (const char* c = text; *c; c++) { const ImFontGlyph* g = font->FindGlyph((ImWchar)*c); if (g) width += g->AdvanceX * scale; }
++    float x = center_x - width / 2;
++    SDL_SetTextureColorMod(credit_tex, 255, 255, 255);
++    for (const char* c = text; *c; c++) {
++        const ImFontGlyph* g = font->FindGlyph((ImWchar)*c);
++        if (!g) continue;
++        if (g->Visible) {
++            SDL_Rect src = { (int)(g->U0 * credit_w + 0.5f), (int)(g->V0 * credit_h + 0.5f),
++                             (int)((g->U1 - g->U0) * credit_w + 0.5f), (int)((g->V1 - g->V0) * credit_h + 0.5f) };
++            SDL_Rect dst = { (int)(x + g->X0 * scale), (int)(y + g->Y0 * scale + 11 * scale),
++                             (int)((g->X1 - g->X0) * scale + 0.5f), (int)((g->Y1 - g->Y0) * scale + 0.5f) };
++            SDL_RenderCopy(renderer, credit_tex, &src, &dst);
++        }
++        x += g->AdvanceX * scale;
++    }
++}
++#endif
++
+ bool saturn_splash_screen_update(SDL_Renderer* renderer) {
+     SDL_Event event;
+     while (SDL_PollEvent(&event)) {
+@@ -1297,6 +1361,10 @@
+             prompting_for_rom = false;
+         }
+     }
++#ifdef __ANDROID__
++    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
++    SDL_RenderClear(renderer);
++#endif
+     SDL_Rect rect = (SDL_Rect){
+         .x = 0,
+         .y = 0,
+@@ -1325,6 +1393,9 @@
+         .h = saturn_splash_screen_banner_height
+     };
+     SDL_RenderCopy(renderer, saturn_splash_screen_banner, &src, &dst);
++#ifdef __ANDROID__
++    splash_credit_draw(renderer, "Android Port By SJG4 (JuanFunkin)", 640 / 2.f, dst.y + dst.h + 10, 1.6f);
++#endif
+     if (prompting_for_rom) SDL_RenderCopy(renderer, saturn_splash_screen_rom_prompt, &rect, &rect);
+     if (!saturn_begin_extract_rom_thread()) {
+         if (extraction_progress >= 0) {
+@@ -1342,11 +1413,24 @@
+ int saturn_splash_screen_open() {
+     // make the x11 compositor on linux not kill itself
+     SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
++#ifdef __ANDROID__
++    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
++    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
++    SDL_Init(SDL_INIT_VIDEO);
++    SDL_Window* window = SDL_CreateWindow("Saturn Studio", 0, 0, 0, 0, SDL_WINDOW_FULLSCREEN);
++    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
++    SDL_RenderSetLogicalSize(renderer, 640, 360); // the splash is drawn for 640x360, letterboxed on the phone
++    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
++#else
+     SDL_Window* window = SDL_CreateWindow("Saturn Studio", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 360, 0);
+     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+     SDL_SetWindowBordered(window, SDL_FALSE);
++#endif
+     saturn_splash_screen_init(renderer);
++#ifdef __ANDROID__
++    splash_credit_init(renderer);
++#endif
+     bool extracting_assets = true;
+     while (true) {
+         clock_t before = clock();
+@@ -1355,8 +1439,14 @@
+         clock_t after = clock();
+         if (after - before < CLOCKS_PER_SEC / 60) std::this_thread::sleep_for(std::chrono::microseconds((int)(1000000 / 60.0f - (float)(after - before) / CLOCKS_PER_SEC * 1000000)));
+     }
++#ifdef __ANDROID__
++    if (credit_tex) { SDL_DestroyTexture(credit_tex); credit_tex = nullptr; }
++    delete credit_atlas; credit_atlas = nullptr;
++#endif
+     SDL_DestroyRenderer(renderer);
+     SDL_DestroyWindow(window);
++#ifndef __ANDROID__
+     SDL_Quit();
++#endif
+     return extract_return_code;
+ }

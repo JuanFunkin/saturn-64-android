@@ -1,0 +1,18 @@
+--- a/src/audio/data.c
++++ b/src/audio/data.c
+@@ -1,3 +1,4 @@
++#include "audio_ptr.h"
+ #include <ultra64.h>
+ 
+ #include "data.h"
+@@ -583,8 +584,8 @@
+ 
+ s16 gTatumsPerBeat = TATUMS_PER_BEAT;
+ s8 gUnusedCount80333EE8 = UNUSED_COUNT_80333EE8;
+-s32 gAudioHeapSize = DOUBLE_SIZE_ON_64_BIT(AUDIO_HEAP_SIZE);
+-s32 D_80333EF0 = DOUBLE_SIZE_ON_64_BIT(D_80333EF0_VAL);
++s32 gAudioHeapSize = AUDIO_DOUBLE_SIZE(AUDIO_HEAP_SIZE);
++s32 D_80333EF0 = AUDIO_DOUBLE_SIZE(D_80333EF0_VAL);
+ volatile s32 gAudioLoadLock = AUDIO_LOCK_UNINITIALIZED;
+ 
+ #ifdef VERSION_EU

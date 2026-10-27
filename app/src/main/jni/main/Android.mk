@@ -1,6 +1,9 @@
-# Saturn 64 Mobile - compila el motor de Saturn como libmain.so (SDL2 + OpenGL ES 2)
+# Saturn Studio for Android: builds the engine as libmain.so (SDL2 + OpenGL ES 3.0).
+# The source list mirrors the PC Makefile (SRC_DIRS / levels / goddard / lib/src / sound), minus the
+# Windows, SDL1, legacy GL, emscripten and Discord files.
 LOCAL_PATH := $(call my-dir)
-SAT := ../saturn
+ST := ../studio
+STABS := $(LOCAL_PATH)/$(ST)
 
 include $(CLEAR_VARS)
 LOCAL_MODULE := main
@@ -9,374 +12,60 @@ LOCAL_SHARED_LIBRARIES := SDL2
 
 LOCAL_C_INCLUDES := \
     $(LOCAL_PATH)/compat \
-    $(LOCAL_PATH)/$(SAT)/include \
-    $(LOCAL_PATH)/$(SAT)/build/us_pc \
-    $(LOCAL_PATH)/$(SAT)/build/us_pc/include \
-    $(LOCAL_PATH)/$(SAT)/src \
-    $(LOCAL_PATH)/$(SAT)
+    $(LOCAL_PATH)/compat/SDL2 \
+    $(STABS)/include \
+    $(STABS)/build/us_pc \
+    $(STABS)/build/us_pc/include \
+    $(STABS)/src \
+    $(STABS)
 
 LOCAL_CFLAGS := \
     -DDYNOS -DRAPI_GL=1 -DWAPI_SDL2=1 -DAAPI_SDL2=1 -DCAPI_SDL2=1 -DHAVE_SDL2=1 \
     -DVERSION_US -D_LANGUAGE_C -DNON_MATCHING -DAVOID_UB -DF3DEX_GBI_2E \
-    -fno-strict-aliasing -fwrapv -fcommon -funwind-tables \
-    -DGIT_HASH=\"5008553\" -DGIT_BRANCH=\"legacy\" \
+    -O0 -fno-strict-aliasing -fwrapv -fcommon -fsigned-char -funwind-tables \
+    -fno-delete-null-pointer-checks -fno-inline-functions \
+    -DGIT_HASH=\"afd5c38\" -DGIT_BRANCH=\"android\" \
     -DNODRAWINGDISTANCE -DTEXTURE_FIX -DEXT_OPTIONS_MENU -DEXTERNAL_DATA \
     -DFS_BASEDIR=\"res\" \
-    -DUSE_GLES -DIMGUI_IMPL_OPENGL_ES2 -D_GNU_SOURCE \
+    -DUSE_GLES -DIMGUI_IMPL_OPENGL_ES3 -D_GNU_SOURCE \
     -Wno-int-conversion -Wno-implicit-function-declaration -Wno-incompatible-pointer-types \
-    -Wno-implicit-int -Wno-deprecated-declarations -Wno-everything
+    -Wno-implicit-int -Wno-deprecated-declarations -Wno-narrowing -Wno-everything
 
-LOCAL_CPPFLAGS := -std=c++17 -fexceptions -frtti
+# The desktop Makefile builds the SM64 decomp C code with DEBUG=1 (no optimisation); the decomp relies on undefined
+# behaviour that Clang -O2 breaks (crash right after the editor starts). C stays at -O0, C++ (ImGui etc.) is optimised.
+LOCAL_CPPFLAGS := -O1 -std=c++17 -fexceptions -frtti
 LOCAL_DISABLE_FORMAT_STRING_CHECKS := true
 
-LOCAL_SRC_FILES := \
-    $(SAT)/actors/common0.c \
-    $(SAT)/actors/common0_geo.c \
-    $(SAT)/actors/common1.c \
-    $(SAT)/actors/common1_geo.c \
-    $(SAT)/actors/group0.c \
-    $(SAT)/actors/group0_geo.c \
-    $(SAT)/actors/group1.c \
-    $(SAT)/actors/group10.c \
-    $(SAT)/actors/group10_geo.c \
-    $(SAT)/actors/group11.c \
-    $(SAT)/actors/group11_geo.c \
-    $(SAT)/actors/group12.c \
-    $(SAT)/actors/group12_geo.c \
-    $(SAT)/actors/group13.c \
-    $(SAT)/actors/group13_geo.c \
-    $(SAT)/actors/group14.c \
-    $(SAT)/actors/group14_geo.c \
-    $(SAT)/actors/group15.c \
-    $(SAT)/actors/group15_geo.c \
-    $(SAT)/actors/group16.c \
-    $(SAT)/actors/group16_geo.c \
-    $(SAT)/actors/group17.c \
-    $(SAT)/actors/group17_geo.c \
-    $(SAT)/actors/group1_geo.c \
-    $(SAT)/actors/group2.c \
-    $(SAT)/actors/group2_geo.c \
-    $(SAT)/actors/group3.c \
-    $(SAT)/actors/group3_geo.c \
-    $(SAT)/actors/group4.c \
-    $(SAT)/actors/group4_geo.c \
-    $(SAT)/actors/group5.c \
-    $(SAT)/actors/group5_geo.c \
-    $(SAT)/actors/group6.c \
-    $(SAT)/actors/group6_geo.c \
-    $(SAT)/actors/group7.c \
-    $(SAT)/actors/group7_geo.c \
-    $(SAT)/actors/group8.c \
-    $(SAT)/actors/group8_geo.c \
-    $(SAT)/actors/group9.c \
-    $(SAT)/actors/group9_geo.c \
-    $(SAT)/bin/cave.c \
-    $(SAT)/bin/debug_level_select.c \
-    $(SAT)/bin/effect.c \
-    $(SAT)/bin/fire.c \
-    $(SAT)/bin/generic.c \
-    $(SAT)/bin/grass.c \
-    $(SAT)/bin/inside.c \
-    $(SAT)/bin/machine.c \
-    $(SAT)/bin/mountain.c \
-    $(SAT)/bin/outside.c \
-    $(SAT)/bin/segment2.c \
-    $(SAT)/bin/sky.c \
-    $(SAT)/bin/snow.c \
-    $(SAT)/bin/spooky.c \
-    $(SAT)/bin/title_screen_bg.c \
-    $(SAT)/bin/water.c \
-    $(SAT)/build/us_pc/assets/mario_anim_data.c \
-    $(SAT)/data/behavior_data.c \
-    $(SAT)/data/dynos_c.cpp \
-    $(SAT)/data/dynos_gfx_init.cpp \
-    $(SAT)/data/dynos_gfx_load.cpp \
-    $(SAT)/data/dynos_gfx_read.cpp \
-    $(SAT)/data/dynos_gfx_texture.cpp \
-    $(SAT)/data/dynos_gfx_update.cpp \
-    $(SAT)/data/dynos_gfx_write.cpp \
-    $(SAT)/data/dynos_level.cpp \
-    $(SAT)/data/dynos_main.cpp \
-    $(SAT)/data/dynos_misc.cpp \
-    $(SAT)/data/dynos_opt.cpp \
-    $(SAT)/data/dynos_opt_config.cpp \
-    $(SAT)/data/dynos_opt_cont.cpp \
-    $(SAT)/data/dynos_opt_render.cpp \
-    $(SAT)/data/dynos_opt_vanilla.cpp \
-    $(SAT)/data/dynos_opt_vanilla_c.c \
-    $(SAT)/data/dynos_warps.cpp \
-    $(SAT)/levels/bbh/geo.c \
-    $(SAT)/levels/bbh/leveldata.c \
-    $(SAT)/levels/bbh/script.c \
-    $(SAT)/levels/bitdw/geo.c \
-    $(SAT)/levels/bitdw/leveldata.c \
-    $(SAT)/levels/bitdw/script.c \
-    $(SAT)/levels/bitfs/geo.c \
-    $(SAT)/levels/bitfs/leveldata.c \
-    $(SAT)/levels/bitfs/script.c \
-    $(SAT)/levels/bits/geo.c \
-    $(SAT)/levels/bits/leveldata.c \
-    $(SAT)/levels/bits/script.c \
-    $(SAT)/levels/bob/geo.c \
-    $(SAT)/levels/bob/leveldata.c \
-    $(SAT)/levels/bob/script.c \
-    $(SAT)/levels/bowser_1/geo.c \
-    $(SAT)/levels/bowser_1/leveldata.c \
-    $(SAT)/levels/bowser_1/script.c \
-    $(SAT)/levels/bowser_2/geo.c \
-    $(SAT)/levels/bowser_2/leveldata.c \
-    $(SAT)/levels/bowser_2/script.c \
-    $(SAT)/levels/bowser_3/geo.c \
-    $(SAT)/levels/bowser_3/leveldata.c \
-    $(SAT)/levels/bowser_3/script.c \
-    $(SAT)/levels/castle_courtyard/geo.c \
-    $(SAT)/levels/castle_courtyard/leveldata.c \
-    $(SAT)/levels/castle_courtyard/script.c \
-    $(SAT)/levels/castle_grounds/geo.c \
-    $(SAT)/levels/castle_grounds/leveldata.c \
-    $(SAT)/levels/castle_grounds/script.c \
-    $(SAT)/levels/castle_inside/geo.c \
-    $(SAT)/levels/castle_inside/leveldata.c \
-    $(SAT)/levels/castle_inside/script.c \
-    $(SAT)/levels/ccm/geo.c \
-    $(SAT)/levels/ccm/leveldata.c \
-    $(SAT)/levels/ccm/script.c \
-    $(SAT)/levels/cotmc/geo.c \
-    $(SAT)/levels/cotmc/leveldata.c \
-    $(SAT)/levels/cotmc/script.c \
-    $(SAT)/levels/ddd/geo.c \
-    $(SAT)/levels/ddd/leveldata.c \
-    $(SAT)/levels/ddd/script.c \
-    $(SAT)/levels/ending/geo.c \
-    $(SAT)/levels/ending/leveldata.c \
-    $(SAT)/levels/ending/script.c \
-    $(SAT)/levels/entry.c \
-    $(SAT)/levels/hmc/geo.c \
-    $(SAT)/levels/hmc/leveldata.c \
-    $(SAT)/levels/hmc/script.c \
-    $(SAT)/levels/intro/geo.c \
-    $(SAT)/levels/intro/leveldata.c \
-    $(SAT)/levels/intro/script.c \
-    $(SAT)/levels/jrb/geo.c \
-    $(SAT)/levels/jrb/leveldata.c \
-    $(SAT)/levels/jrb/script.c \
-    $(SAT)/levels/lll/geo.c \
-    $(SAT)/levels/lll/leveldata.c \
-    $(SAT)/levels/lll/script.c \
-    $(SAT)/levels/menu/geo.c \
-    $(SAT)/levels/menu/leveldata.c \
-    $(SAT)/levels/menu/script.c \
-    $(SAT)/levels/pss/geo.c \
-    $(SAT)/levels/pss/leveldata.c \
-    $(SAT)/levels/pss/script.c \
-    $(SAT)/levels/rr/geo.c \
-    $(SAT)/levels/rr/leveldata.c \
-    $(SAT)/levels/rr/script.c \
-    $(SAT)/levels/sa/geo.c \
-    $(SAT)/levels/sa/leveldata.c \
-    $(SAT)/levels/sa/script.c \
-    $(SAT)/levels/scripts.c \
-    $(SAT)/levels/sl/geo.c \
-    $(SAT)/levels/sl/leveldata.c \
-    $(SAT)/levels/sl/script.c \
-    $(SAT)/levels/ssl/geo.c \
-    $(SAT)/levels/ssl/leveldata.c \
-    $(SAT)/levels/ssl/script.c \
-    $(SAT)/levels/thi/geo.c \
-    $(SAT)/levels/thi/leveldata.c \
-    $(SAT)/levels/thi/script.c \
-    $(SAT)/levels/totwc/geo.c \
-    $(SAT)/levels/totwc/leveldata.c \
-    $(SAT)/levels/totwc/script.c \
-    $(SAT)/levels/ttc/geo.c \
-    $(SAT)/levels/ttc/leveldata.c \
-    $(SAT)/levels/ttc/script.c \
-    $(SAT)/levels/ttm/geo.c \
-    $(SAT)/levels/ttm/leveldata.c \
-    $(SAT)/levels/ttm/script.c \
-    $(SAT)/levels/vcutm/geo.c \
-    $(SAT)/levels/vcutm/leveldata.c \
-    $(SAT)/levels/vcutm/script.c \
-    $(SAT)/levels/wdw/geo.c \
-    $(SAT)/levels/wdw/leveldata.c \
-    $(SAT)/levels/wdw/script.c \
-    $(SAT)/levels/wf/geo.c \
-    $(SAT)/levels/wf/leveldata.c \
-    $(SAT)/levels/wf/script.c \
-    $(SAT)/levels/wmotr/geo.c \
-    $(SAT)/levels/wmotr/leveldata.c \
-    $(SAT)/levels/wmotr/script.c \
-    $(SAT)/lib/src/alBnkfNew.c \
-    $(SAT)/lib/src/guLookAtRef.c \
-    $(SAT)/lib/src/guMtxF2L.c \
-    $(SAT)/lib/src/guNormalize.c \
-    $(SAT)/lib/src/guOrthoF.c \
-    $(SAT)/lib/src/guPerspectiveF.c \
-    $(SAT)/lib/src/guRotateF.c \
-    $(SAT)/lib/src/guScaleF.c \
-    $(SAT)/lib/src/guTranslateF.c \
-    $(SAT)/lib/src/ldiv.c \
-    $(SAT)/sound/sound_data.c \
-    $(SAT)/src/audio/data.c \
-    $(SAT)/src/audio/effects.c \
-    $(SAT)/src/audio/external.c \
-    $(SAT)/src/audio/globals_start.c \
-    $(SAT)/src/audio/heap.c \
-    $(SAT)/src/audio/load.c \
-    $(SAT)/src/audio/playback.c \
-    $(SAT)/src/audio/port_eu.c \
-    $(SAT)/src/audio/seqplayer.c \
-    $(SAT)/src/audio/synthesis.c \
-    $(SAT)/src/buffers/buffers.c \
-    $(SAT)/src/buffers/framebuffers.c \
-    $(SAT)/src/buffers/gfx_output_buffer.c \
-    $(SAT)/src/buffers/zbuffer.c \
-    $(SAT)/src/engine/behavior_script.c \
-    $(SAT)/src/engine/geo_layout.c \
-    $(SAT)/src/engine/graph_node.c \
-    $(SAT)/src/engine/graph_node_manager.c \
-    $(SAT)/src/engine/level_script.c \
-    $(SAT)/src/engine/math_util.c \
-    $(SAT)/src/engine/surface_collision.c \
-    $(SAT)/src/engine/surface_load.c \
-    $(SAT)/src/game/area.c \
-    $(SAT)/src/game/behavior_actions.c \
-    $(SAT)/src/game/camera.c \
-    $(SAT)/src/game/debug.c \
-    $(SAT)/src/game/debug_course.c \
-    $(SAT)/src/game/envfx_bubbles.c \
-    $(SAT)/src/game/envfx_snow.c \
-    $(SAT)/src/game/game_init.c \
-    $(SAT)/src/game/geo_misc.c \
-    $(SAT)/src/game/hud.c \
-    $(SAT)/src/game/ingame_menu.c \
-    $(SAT)/src/game/interaction.c \
-    $(SAT)/src/game/level_geo.c \
-    $(SAT)/src/game/level_update.c \
-    $(SAT)/src/game/macro_special_objects.c \
-    $(SAT)/src/game/mario.c \
-    $(SAT)/src/game/mario_actions_airborne.c \
-    $(SAT)/src/game/mario_actions_automatic.c \
-    $(SAT)/src/game/mario_actions_cutscene.c \
-    $(SAT)/src/game/mario_actions_moving.c \
-    $(SAT)/src/game/mario_actions_object.c \
-    $(SAT)/src/game/mario_actions_stationary.c \
-    $(SAT)/src/game/mario_actions_submerged.c \
-    $(SAT)/src/game/mario_misc.c \
-    $(SAT)/src/game/mario_step.c \
-    $(SAT)/src/game/memory.c \
-    $(SAT)/src/game/moving_texture.c \
-    $(SAT)/src/game/obj_behaviors.c \
-    $(SAT)/src/game/obj_behaviors_2.c \
-    $(SAT)/src/game/object_collision.c \
-    $(SAT)/src/game/object_helpers.c \
-    $(SAT)/src/game/object_list_processor.c \
-    $(SAT)/src/game/options_menu.c \
-    $(SAT)/src/game/paintings.c \
-    $(SAT)/src/game/platform_displacement.c \
-    $(SAT)/src/game/print.c \
-    $(SAT)/src/game/profiler.c \
-    $(SAT)/src/game/rendering_graph_node.c \
-    $(SAT)/src/game/save_file.c \
-    $(SAT)/src/game/screen_transition.c \
-    $(SAT)/src/game/shadow.c \
-    $(SAT)/src/game/skybox.c \
-    $(SAT)/src/game/sound_init.c \
-    $(SAT)/src/game/spawn_object.c \
-    $(SAT)/src/game/spawn_sound.c \
-    $(SAT)/src/game/thread6.c \
-    $(SAT)/src/goddard/debug_utils.c \
-    $(SAT)/src/goddard/draw_objects.c \
-    $(SAT)/src/goddard/dynlist_proc.c \
-    $(SAT)/src/goddard/dynlists/anim_group_1.c \
-    $(SAT)/src/goddard/dynlists/anim_group_2.c \
-    $(SAT)/src/goddard/dynlists/anim_mario_eyebrows_1.c \
-    $(SAT)/src/goddard/dynlists/anim_mario_lips_1.c \
-    $(SAT)/src/goddard/dynlists/anim_mario_lips_2.c \
-    $(SAT)/src/goddard/dynlists/anim_mario_mustache_left.c \
-    $(SAT)/src/goddard/dynlists/anim_mario_mustache_right.c \
-    $(SAT)/src/goddard/dynlists/dynlist_mario_face.c \
-    $(SAT)/src/goddard/dynlists/dynlist_mario_master.c \
-    $(SAT)/src/goddard/dynlists/dynlist_test_cube.c \
-    $(SAT)/src/goddard/dynlists/dynlist_unused.c \
-    $(SAT)/src/goddard/dynlists/dynlists_mario_eyebrows_mustache.c \
-    $(SAT)/src/goddard/dynlists/dynlists_mario_eyes.c \
-    $(SAT)/src/goddard/gd_main.c \
-    $(SAT)/src/goddard/gd_math.c \
-    $(SAT)/src/goddard/gd_memory.c \
-    $(SAT)/src/goddard/joints.c \
-    $(SAT)/src/goddard/objects.c \
-    $(SAT)/src/goddard/old_menu.c \
-    $(SAT)/src/goddard/particles.c \
-    $(SAT)/src/goddard/renderer.c \
-    $(SAT)/src/goddard/sfx.c \
-    $(SAT)/src/goddard/shape_helper.c \
-    $(SAT)/src/goddard/skin.c \
-    $(SAT)/src/goddard/skin_movement.c \
-    $(SAT)/src/menu/file_select.c \
-    $(SAT)/src/menu/intro_geo.c \
-    $(SAT)/src/menu/level_select_menu.c \
-    $(SAT)/src/menu/star_select.c \
-    $(SAT)/src/pc/android_debug.c \
-    $(SAT)/src/pc/audio/audio_null.c \
-    $(SAT)/src/pc/audio/audio_sdl2.c \
-    $(SAT)/src/pc/cheats.c \
-    $(SAT)/src/pc/cliopts.c \
-    $(SAT)/src/pc/configfile.c \
-    $(SAT)/src/pc/controller/controller_entry_point.c \
-    $(SAT)/src/pc/controller/controller_keyboard.c \
-    $(SAT)/src/pc/controller/controller_recorded_tas.c \
-    $(SAT)/src/pc/controller/controller_sdl2.c \
-    $(SAT)/src/pc/controller/controller_touch.c \
-    $(SAT)/src/pc/fs/dirtree.c \
-    $(SAT)/src/pc/fs/fs.c \
-    $(SAT)/src/pc/fs/fs_packtype_dir.c \
-    $(SAT)/src/pc/fs/fs_packtype_zip.c \
-    $(SAT)/src/pc/gfx/gfx_cc.c \
-    $(SAT)/src/pc/gfx/gfx_opengl.c \
-    $(SAT)/src/pc/gfx/gfx_pc.c \
-    $(SAT)/src/pc/gfx/gfx_sdl2.c \
-    $(SAT)/src/pc/ini.c \
-    $(SAT)/src/pc/mixer.c \
-    $(SAT)/src/pc/pc_main.c \
-    $(SAT)/src/pc/platform.c \
-    $(SAT)/src/pc/pngutils.c \
-    $(SAT)/src/pc/ultra_reimplementation.c \
-    $(SAT)/src/saturn/cmd/saturn_cmd.cpp \
-    $(SAT)/src/saturn/cmd/saturn_cmd_func.cpp \
-    $(SAT)/src/saturn/filesystem/saturn_animfile.cpp \
-    $(SAT)/src/saturn/filesystem/saturn_format.cpp \
-    $(SAT)/src/saturn/filesystem/saturn_locationfile.cpp \
-    $(SAT)/src/saturn/filesystem/saturn_projectfile.cpp \
-    $(SAT)/src/saturn/filesystem/saturn_registerfile.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_cc_editor.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_chroma.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_dynos.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_expressions.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_machinima.cpp \
-    $(SAT)/src/saturn/imgui/saturn_imgui_settings.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui-knobs.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_demo.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_draw.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_impl_opengl3.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_impl_sdl.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_neo_internal.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_neo_sequencer.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_tables.cpp \
-    $(SAT)/src/saturn/libs/imgui/imgui_widgets.cpp \
-    $(SAT)/src/saturn/saturn.cpp \
-    $(SAT)/src/saturn/saturn_animations.cpp \
-    $(SAT)/src/saturn/saturn_colors.cpp \
-    $(SAT)/src/saturn/saturn_models.cpp \
-    $(SAT)/src/saturn/saturn_rom_extract.cpp \
-    $(SAT)/src/saturn/saturn_textures.cpp \
-    $(SAT)/src/saturn/saturn_timelines.cpp \
-    $(SAT)/src/saturn/touch/saturn_mobile_ui.cpp \
-    $(SAT)/src/saturn/touch/saturn_touch_ui.cpp
+SRC_DIRS := src src/engine src/game src/audio src/menu src/buffers actors levels bin data assets \
+            src/pc src/pc/gfx src/pc/audio src/pc/controller src/pc/fs src/pc/fs/packtypes \
+            src/saturn src/saturn/imgui src/saturn/libs/imgui src/saturn/filesystem src/saturn/cmd \
+            src/saturn/touch src/saturn/discord
+GODDARD_DIRS := src/goddard src/goddard/dynlists
+ULTRA_C := alBnkfNew guLookAtRef guMtxF2L guNormalize guOrthoF guPerspectiveF guRotateF guScaleF guTranslateF ldiv
+
+ALL_C := $(foreach d,$(SRC_DIRS),$(wildcard $(STABS)/$(d)/*.c)) \
+         $(wildcard $(STABS)/levels/*/leveldata.c) $(wildcard $(STABS)/levels/*/script.c) $(wildcard $(STABS)/levels/*/geo.c) \
+         $(foreach d,$(GODDARD_DIRS),$(wildcard $(STABS)/$(d)/*.c)) \
+         $(foreach f,$(ULTRA_C),$(STABS)/lib/src/$(f).c) \
+         $(STABS)/sound/sound_data.c \
+         $(STABS)/build/us_pc/assets/mario_anim_data.c
+ALL_CXX := $(foreach d,$(SRC_DIRS),$(wildcard $(STABS)/$(d)/*.cpp))
+
+# Not for Android: desktop OpenGL 2 ImGui backend, main() of the N64 build, Windows/DirectX, SDL1, legacy GL, emscripten, Discord (stubbed instead)
+EXCLUDE := \
+    $(STABS)/src/game/main.c \
+    $(STABS)/src/pc/gfx/gfx_direct3d11.cpp $(STABS)/src/pc/gfx/gfx_direct3d12.cpp \
+    $(STABS)/src/pc/gfx/gfx_direct3d_common.cpp $(STABS)/src/pc/gfx/gfx_dxgi.cpp \
+    $(STABS)/src/pc/gfx/gfx_sdl1.c $(STABS)/src/pc/gfx/gfx_opengl_legacy.c \
+    $(STABS)/src/pc/audio/audio_sdl1.c $(STABS)/src/pc/controller/controller_sdl1.c \
+    $(STABS)/src/pc/controller/controller_emscripten_keyboard.c \
+    $(STABS)/src/saturn/discord/saturn_discord.cpp \
+    $(STABS)/src/saturn/libs/imgui/imgui_impl_opengl2.cpp
+
+SRCS := $(sort $(filter-out $(EXCLUDE),$(ALL_C) $(ALL_CXX)))
+LOCAL_SRC_FILES := $(patsubst $(LOCAL_PATH)/%,%,$(SRCS))
 
 LOCAL_LDFLAGS := -Wl,--error-limit=0 -Wl,--export-dynamic
-LOCAL_LDLIBS := -lGLESv2 -llog -landroid -lm
+LOCAL_LDLIBS := -lGLESv3 -llog -landroid -lm -ldl
 
 include $(BUILD_SHARED_LIBRARY)

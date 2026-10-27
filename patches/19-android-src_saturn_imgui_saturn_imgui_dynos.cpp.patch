@@ -1,0 +1,82 @@
+--- a/src/saturn/imgui/saturn_imgui_dynos.cpp
++++ b/src/saturn/imgui/saturn_imgui_dynos.cpp
+@@ -1,7 +1,14 @@
+ #include "saturn_imgui_dynos.h"
+ 
+ #include "saturn/imgui/saturn_imgui_settings.h"
++#ifdef __ANDROID__
++#include "pc/android_support.h"
++#include <chrono>
++#include <ctime>
++#include <filesystem>
++#else
+ #include "saturn/libs/portable-file-dialogs.h"
++#endif
+ 
+ #include <algorithm>
+ #include <string>
+@@ -72,6 +79,41 @@
+ 
+ bool is_gameshark_open;
+ 
++#ifdef __ANDROID__
++// Android has no blocking native dialogs. Opening uses the system picker (SAF) through JNI: the picked file is
++// copied into <data folder>/imports and its path returned. The render thread simply waits while the picker is up.
++std::vector<std::string> choose_file_dialog(std::string windowTitle, std::vector<std::string> filetypes, bool multiselect) {
++    char buf[4096];
++    buf[0] = 0;
++    std::string mime = "*/*";
++    for (size_t i = 1; i < filetypes.size(); i += 2) {
++        if (filetypes[i] == "*.png") mime = "image/png";
++    }
++    if (android_pick_file(windowTitle.c_str(), mime.c_str(), buf, sizeof(buf)) && buf[0]) return { std::string(buf) };
++    return {};
++}
++
++// Saving never asks anything: files go to <data folder>/exports with a timestamped name.
++// The extension is taken from the first "*.ext" filter; video renderers add theirs afterwards.
++std::string save_file_dialog(std::string windowTitle, std::vector<std::string> filetypes) {
++    std::string ext = "";
++    for (size_t i = 0; i < filetypes.size(); i++) {
++        const std::string& f = filetypes[i];
++        if (f.size() > 2 && f[0] == '*' && f[1] == '.') { ext = f.substr(1); break; }
++    }
++    std::filesystem::create_directories("exports");
++    time_t t = time(nullptr);
++    char stamp[64];
++    strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", localtime(&t));
++    std::string name = windowTitle;
++    for (auto& c : name) if (!isalnum((unsigned char)c)) c = '_';
++    return (std::filesystem::absolute("exports") / (name + "_" + stamp + ext)).string();
++}
++
++void open_file(std::string path) {
++    android_toast(("Files are in: " + path).c_str());
++}
++#else
+ std::vector<std::string> choose_file_dialog(std::string windowTitle, std::vector<std::string> filetypes, bool multiselect) {
+     return pfd::open_file(windowTitle, ".", filetypes, multiselect ? pfd::opt::multiselect : pfd::opt::none).result();
+ }
+@@ -90,6 +132,13 @@
+ #endif
+ }
+ 
++#endif
++
++#ifdef __ANDROID__
++void saturn_show_crash_dialog() {
++    // Crash details are written by android_debug.c to <data folder>/latest.log and crash.txt.
++}
++#else
+ void saturn_show_crash_dialog() {
+     if (pfd::message("Saturn Studio",
+         "Saturn Studio has crashed.\n"
+@@ -105,6 +154,8 @@
+     }
+ }
+ 
++#endif
++
+ // UI
+ 
+ // Simple helper function to load an image into a OpenGL texture with common settings

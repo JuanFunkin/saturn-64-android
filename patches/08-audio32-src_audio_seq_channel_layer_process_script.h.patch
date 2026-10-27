@@ -1,0 +1,24 @@
+--- a/src/audio/seq_channel_layer_process_script.h
++++ b/src/audio/seq_channel_layer_process_script.h
+@@ -84,10 +84,10 @@
+         } \
+         _instId--; \
+     } \
+-    inst = gCtlEntries[(*seqChannel).bankId].instruments[_instId]; \
++    inst = AUDIO_ELEM(gCtlEntries[(*seqChannel).bankId].instruments[_instId]); \
+     if (inst == NULL) { \
+         while (_instId != 0xff) { \
+-            inst = gCtlEntries[(*seqChannel).bankId].instruments[_instId]; \
++            inst = AUDIO_ELEM(gCtlEntries[(*seqChannel).bankId].instruments[_instId]); \
+             if (inst != NULL) { \
+                 goto gi ## l; \
+             } \
+@@ -403,7 +403,7 @@
+                     DRUM_INDEX--;
+                 }
+ 
+-                drum = gCtlEntries[seqChannel->bankId].drums[DRUM_INDEX];
++                drum = AUDIO_ELEM(gCtlEntries[seqChannel->bankId].drums[DRUM_INDEX]);
+                 if (drum == NULL) {
+                     layer->stopSomething = TRUE;
+                 } else {

@@ -1,0 +1,101 @@
+--- a/src/saturn/saturn_rom_extract.cpp
++++ b/src/saturn/saturn_rom_extract.cpp
+@@ -3,13 +3,24 @@
+ #include "saturn.h"
+ 
+ #include <filesystem>
++#include <algorithm>
++#include <iostream>
++#include <sstream>
++#include <map>
++#include <thread>
++#include <chrono>
+ #include <utility>
+ #include <vector>
+ #include <string>
+ #include <fstream>
+ #include <cmath>
+ 
++#ifdef __ANDROID__
++#include <fstream>
++#include <cstdlib>
++#else
+ #include "saturn/libs/portable-file-dialogs.h"
++#endif
+ 
+ extern "C" {
+ #include "pc/pc_main.h"
+@@ -19,6 +30,12 @@
+ #include "pc/gfx/gfx_pc.h"
+ }
+ 
++#ifdef __ANDROID__
++extern "C" {
++#include "pc/android_support.h"
++}
++#endif
++
+ std::string currently_extracting = "";
+ std::string rom_path = "";
+ bool prompting_for_rom = false;
+@@ -388,6 +405,31 @@
+         }
+     }
+     if (!needs_extract) return ROM_OK;
++#ifdef __ANDROID__
++    // On Android the ROM is chosen with the system file picker (ImportActivity), validated and copied to
++    // <data folder>/rom.z64 BEFORE this process starts. Nothing to prompt for here.
++    {
++        rom_path = std::string(android_data_dir) + "/rom.z64";
++        std::string err = "";
++        if (!std::filesystem::exists(rom_path)) err = "rom_missing";
++        else if (std::filesystem::file_size(rom_path) != ROM_SIZE) err = "rom_invalid";
++        else {
++            std::ifstream stream = std::ifstream(rom_path, std::ios::binary);
++            unsigned char* data = (unsigned char*)malloc(ROM_SIZE);
++            stream.read((char*)data, ROM_SIZE);
++            stream.close();
++            unsigned int checksum = crc32(data, ROM_SIZE);
++            free(data);
++            if (checksum != ROM_CHECKSUM) err = "rom_invalid";
++        }
++        if (err != "") {
++            // ImportActivity reads this file the next time it is opened and shows the message.
++            android_write_text_file("rom_error.txt", err.c_str());
++            android_set_status(-1, err.c_str());
++            exit(3);
++        }
++    }
++#else
+     while (true) {
+         rom_path = "";
+         prompting_for_rom = true;
+@@ -410,6 +452,7 @@
+         }
+         break;
+     }
++#endif
+     return ROM_NEED_EXTRACT;
+ }
+ 
+@@ -433,6 +476,9 @@
+     int count = 0;
+     for (const auto& asset : assets) {
+         extraction_progress = count++ / (float)assets.size();
++#ifdef __ANDROID__
++        if ((count & 15) == 0) android_set_status(extraction_progress, "extracting");
++#endif
+         if (std::find(todo.begin(), todo.end(), asset.path) == todo.end()) continue;
+         currently_extracting = asset.path;
+         std::istringstream iss = std::istringstream(asset.path);
+@@ -495,6 +541,10 @@
+         free(entry.second);
+     }
+     extraction_progress = 1;
++#ifdef __ANDROID__
++    android_set_status(1, "extracted");
++    android_write_text_file("res/.extracted", "1"); // lets the launcher skip the ROM screen next time
++#endif
+     std::cout << "extraction finished" << std::endl;
+     gfx_precache_textures();
+     return ROM_OK;

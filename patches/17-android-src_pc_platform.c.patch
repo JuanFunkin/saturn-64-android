@@ -1,0 +1,32 @@
+--- a/src/pc/platform.c
++++ b/src/pc/platform.c
+@@ -114,9 +114,18 @@
+     return ret;
+ }
+ 
++#ifdef __ANDROID__
++// Folder where Saturn Studio keeps everything (set by android_init_paths in android_support.c)
++extern char android_data_dir[];
++#endif
++
+ const char *sys_user_path(void) {
+     static char path[SYS_MAX_PATH] = { 0 };
+ 
++#ifdef __ANDROID__
++    if (android_data_dir[0]) return android_data_dir;
++#endif
++
+     // get the new pref path from SDL
+     char *sdlpath = SDL_GetPrefPath("", "v64saturn");
+     if (sdlpath) {
+@@ -140,6 +149,10 @@
+ 
+ const char *sys_exe_path(void) {
+     static char path[SYS_MAX_PATH] = { 0 };
++#ifdef __ANDROID__
++    // There is no "executable folder" on Android: use the data folder (dynos/packs is looked up there)
++    if (android_data_dir[0]) return android_data_dir;
++#endif
+     char *sdlpath = SDL_GetBasePath();
+     if (sdlpath && sdlpath[0]) {
+         // use the SDL path if it exists

@@ -1,0 +1,22 @@
+--- a/src/pc/controller/controller_entry_point.c
++++ b/src/pc/controller/controller_entry_point.c
+@@ -7,6 +7,9 @@
+ #include "controller_recorded_tas.h"
+ #include "controller_keyboard.h"
+ #include "controller_sdl.h"
++#ifdef __ANDROID__
++#include "controller_touch.h"
++#endif
+ 
+ // Analog camera movement by Pathétique (github.com/vrmiguel), y0shin and Mors
+ // Contribute or communicate bugs at github.com/vrmiguel/sm64-analog-camera
+@@ -17,6 +20,9 @@
+     &controller_sdl,
+     #endif
+     &controller_keyboard,
++#ifdef __ANDROID__
++    &controller_touch,
++#endif
+ };
+ 
+ s32 osContInit(UNUSED OSMesgQueue *mq, u8 *controllerBits, UNUSED OSContStatus *status) {

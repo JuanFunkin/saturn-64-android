@@ -1,0 +1,30 @@
+--- a/src/saturn/saturn_models.cpp
++++ b/src/saturn/saturn_models.cpp
+@@ -1,3 +1,5 @@
++#include <algorithm>
++#include <cstdio>
+ #include "saturn/saturn_models.h"
+ 
+ #include <string>
+@@ -5,7 +7,9 @@
+ #include <vector>
+ #include <SDL2/SDL.h>
+ 
++#ifndef __ANDROID__
+ #include "saturn/libs/portable-file-dialogs.h"
++#endif
+ 
+ #include "saturn/saturn.h"
+ #include "saturn/saturn_colors.h"
+@@ -81,7 +85,11 @@
+             Json::Value root;
+             try { root << file; }
+             catch (const std::runtime_error& e) {
++#ifdef __ANDROID__
++                fprintf(stderr, "JSON Parse Error: failed to load \"%s\"\n", model.FolderName.c_str());
++#else
+                 pfd::message("JSON Parse Error", "Failed to load \"" + model.FolderName + "\"\nIs the model.json formatted correctly?", pfd::choice::ok, pfd::icon::error);
++#endif
+                 return model;
+             }
+ 

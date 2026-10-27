@@ -1,0 +1,129 @@
+--- a/src/pc/gfx/gfx_sdl2.c
++++ b/src/pc/gfx/gfx_sdl2.c
+@@ -40,6 +40,10 @@
+ #include "src/saturn/saturn.h"
+ #include "src/pc/configfile.h"
+ #include "src/pc/pngutils.h"
++#ifdef __ANDROID__
++#include "src/pc/controller/controller_touch.h"
++#include "src/saturn/touch/saturn_touch_api.h"
++#endif
+ 
+ // TODO: figure out if this shit even works
+ #ifdef VERSION_EU
+@@ -160,6 +164,14 @@
+     if (!limit_fps) frame_time = perf_freq / (6 * FRAMERATE);
+     else frame_time = perf_freq / (2 * FRAMERATE);
+ 
++#ifdef __ANDROID__
++    // Android: the swap interval cannot be probed reliably (refresh rates of 60/90/120 Hz, drivers that ignore
++    // intervals > 1). Always let vsync prevent tearing and pace the game with the timer.
++    SDL_GL_SetSwapInterval(enabled ? 1 : 0);
++    use_timer = true;
++    return;
++#endif
++
+     if (enabled && limit_fps) {
+         // try to detect refresh rate
+         SDL_GL_SetSwapInterval(1);
+@@ -183,6 +195,11 @@
+ }
+ 
+ static void gfx_sdl_set_fullscreen(void) {
++#ifdef __ANDROID__
++    configWindow.reset = false;
++    configWindow.fullscreen = true;
++    return;
++#endif
+     if (configWindow.reset)
+         configWindow.fullscreen = false;
+     if (configWindow.fullscreen == IS_FULLSCREEN())
+@@ -198,6 +215,11 @@
+ }
+ 
+ static void gfx_sdl_reset_dimension_and_pos(void) {
++#ifdef __ANDROID__
++    configWindow.exiting_fullscreen = false;
++    configWindow.reset = false;
++    return;
++#endif
+     if (configWindow.exiting_fullscreen)
+         configWindow.exiting_fullscreen = false;
+ 
+@@ -224,11 +246,42 @@
+     // make the x11 compositor on linux not kill itself
+     SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0");
+ 
++#ifdef __ANDROID__
++    // Touch is handled by saturn_mobile_ui.cpp (gestures -> Dear ImGui mouse) and controller_touch.c (gamepad),
++    // so SDL must not also synthesize mouse events from fingers.
++    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
++    SDL_SetHint(SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
++    SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
++    SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
++#endif
++
+     SDL_Init(SDL_INIT_VIDEO);
+ 
+     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+ 
++#ifdef __ANDROID__
++    // OpenGL ES 3.0 (needed for glBlitFramebuffer, depth24 renderbuffers and glReadPixels from FBOs).
++    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
++    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
++    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
++    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
++    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
++    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
++    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
++    configWindow.fullscreen = true;
++    configWindow.enable_antialias = false; // multisampled textures do not exist in OpenGL ES 3.0
++
++    wnd = SDL_CreateWindow(
++        window_title,
++        0, 0, 0, 0,
++        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN
++    );
++    ctx = SDL_GL_CreateContext(wnd);
++    if (!ctx) {
++        fprintf(stderr, "Could not create an OpenGL ES 3.0 context: %s\n", SDL_GetError());
++    }
++#else
+     #ifdef USE_GLES
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);  // These attributes allow for hardware acceleration on RPis.
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+@@ -249,6 +302,7 @@
+         SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
+     );
+     ctx = SDL_GL_CreateContext(wnd);
++#endif
+ 
+     int w, h, depth;
+     unsigned char* pixels = pngutils_read_png_from_memory(icon_data, sizeof(icon_data), &w, &h, &depth, 0);
+@@ -323,6 +377,13 @@
+     SDL_Event event;
+     while (SDL_PollEvent(&event)) {
+ 
++#ifdef __ANDROID__
++        // 1) the on-screen gamepad may claim the finger, 2) otherwise it is a camera / UI gesture
++        if (event.type == SDL_FINGERDOWN || event.type == SDL_FINGERMOTION || event.type == SDL_FINGERUP) {
++            if (!touch_handle_event(&event)) saturn_mobile_handle_finger(&event);
++            continue;
++        }
++#endif
+         saturn_imgui_handle_events(&event);
+ 
+         switch (event.type) {
+@@ -351,6 +412,11 @@
+                     }
+                 }
+                 break;
++#ifdef __ANDROID__
++            case SDL_APP_WILLENTERBACKGROUND:
++                configfile_save(configfile_name()); // the app can be killed while in the background
++                break;
++#endif
+             case SDL_QUIT:
+                 game_exit();
+                 break;

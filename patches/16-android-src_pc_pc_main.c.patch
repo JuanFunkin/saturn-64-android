@@ -1,0 +1,74 @@
+--- a/src/pc/pc_main.c
++++ b/src/pc/pc_main.c
+@@ -1,4 +1,8 @@
+ #include "pc/debug.h"
++#ifdef __ANDROID__
++#include <SDL2/SDL.h>   // renames main() to SDL_main
++#include "pc/android_support.h"
++#endif
+ #include <stdlib.h>
+ #include <stdio.h>
+ #include <signal.h>
+@@ -224,10 +228,16 @@
+ void main_func(void) {
+     const char *gamedir = gCLIOpts.GameDir[0] ? gCLIOpts.GameDir : FS_BASEDIR;
+     const char *userpath = gCLIOpts.SavePath[0] ? gCLIOpts.SavePath : sys_user_path();
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: fs_init");
++#endif
+     fs_init(sys_ropaths, gamedir, userpath);
+ 
+     configfile_load(configfile_name());
+ 
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: saturn_load_textures");
++#endif
+     saturn_load_textures();
+ 
+     if (gCLIOpts.FullScreen == 1)
+@@ -268,7 +278,13 @@
+ 
+     char window_title[96] = "Saturn Studio";
+ 
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: gfx_init");
++#endif
+     gfx_init(wm_api, rendering_api, window_title);
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: gfx_init done");
++#endif
+     wm_api->set_keyboard_callbacks(keyboard_on_key_down, keyboard_on_key_up, keyboard_on_all_keys_up);
+ 
+     #if defined(AAPI_SDL1) || defined(AAPI_SDL2)
+@@ -280,10 +296,19 @@
+         audio_api = &audio_null;
+     }
+ 
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: audio_init");
++#endif
+     audio_init();
+     sound_init();
+ 
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: thread5_game_loop(init)");
++#endif
+     thread5_game_loop(NULL);
++#ifdef __ANDROID__
++    android_breadcrumb("main_func: entering main loop");
++#endif
+ 
+     inited = true;
+ 
+@@ -314,6 +339,11 @@
+ }
+ 
+ int main(int argc, char *argv[]) {
++#ifdef __ANDROID__
++    android_init_paths();      // reads datadir.txt written by Java, chdir()s into <data folder>
++    android_debug_start();     // log + crash report files in <data folder>
++    android_set_status(0, "starting");
++#endif
+     init_logger();
+     init_crash_handler();
+     parse_cli_opts(argc, argv);

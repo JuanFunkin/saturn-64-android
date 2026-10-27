@@ -1,0 +1,15 @@
+--- a/include/PR/libaudio.h
++++ b/include/PR/libaudio.h
+@@ -2,10 +2,11 @@
+ #define _ULTRA64_LIBAUDIO_H_
+ 
+ #include "abi.h"
++#include "audio_ptr.h"
+ 
+ typedef struct
+ {
+-    u8 *offset;
++    AUDIO_PTR(u8 *, offset);
+     s32 len;
+ } ALSeqData;
+ 

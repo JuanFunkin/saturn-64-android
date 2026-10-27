@@ -1,0 +1,78 @@
+--- a/src/audio/internal.h
++++ b/src/audio/internal.h
+@@ -4,6 +4,7 @@
+ #include <ultra64.h>
+ 
+ #include "types.h"
++#include "audio_ptr.h"
+ 
+ #ifdef VERSION_EU
+ #define SEQUENCE_PLAYERS 4
+@@ -147,15 +148,15 @@
+ {
+     u8 unused;
+     u8 loaded;
+-    u8 *sampleAddr;
+-    struct AdpcmLoop *loop;
+-    struct AdpcmBook *book;
++    AUDIO_PTR(u8 *, sampleAddr);
++    AUDIO_PTR(struct AdpcmLoop *, loop);
++    AUDIO_PTR(struct AdpcmBook *, book);
+     u32 sampleSize; // never read. either 0 or 1 mod 9, depending on padding
+ };
+ 
+ struct AudioBankSound
+ {
+-    struct AudioBankSample *sample;
++    AUDIO_PTR(struct AudioBankSample *, sample);
+     f32 tuning; // frequency scale factor
+ }; // size = 0x8
+ 
+@@ -165,7 +166,7 @@
+     /*0x01*/ u8 normalRangeLo;
+     /*0x02*/ u8 normalRangeHi;
+     /*0x03*/ u8 releaseRate;
+-    /*0x04*/ struct AdsrEnvelope *envelope;
++    /*0x04*/ AUDIO_PTR(struct AdsrEnvelope *, envelope);
+     /*0x08*/ struct AudioBankSound lowNotesSound;
+     /*0x10*/ struct AudioBankSound normalNotesSound;
+     /*0x18*/ struct AudioBankSound highNotesSound;
+@@ -177,13 +178,24 @@
+     u8 pan;
+     u8 loaded;
+     struct AudioBankSound sound;
+-    struct AdsrEnvelope *envelope;
++    AUDIO_PTR(struct AdsrEnvelope *, envelope);
+ };
+ 
++// Elements of the pointer tables inside a bank (also 8 bytes wide on 32-bit hosts, see audio_ptr.h).
++#if AUDIO_HOST_32
++typedef union { struct Instrument *ptr; audio_u64 pad; } InstrumentPtr;
++typedef union { struct Drum *ptr; audio_u64 pad; } DrumPtr;
++#define AUDIO_ELEM(x) ((x).ptr)
++#else
++typedef struct Instrument *InstrumentPtr;
++typedef struct Drum *DrumPtr;
++#define AUDIO_ELEM(x) (x)
++#endif
++
+ struct AudioBank
+ {
+-    struct Drum **drums;
+-    struct Instrument *instruments[1];
++    AUDIO_PTR(DrumPtr *, drums);
++    InstrumentPtr instruments[1];
+ }; // dynamic size
+ 
+ struct CtlEntry
+@@ -191,8 +203,8 @@
+     u8 unused;
+     u8 numInstruments;
+     u8 numDrums;
+-    struct Instrument **instruments;
+-    struct Drum **drums;
++    InstrumentPtr *instruments;
++    DrumPtr *drums;
+ }; // size = 0xC
+ 
+ struct M64ScriptState {

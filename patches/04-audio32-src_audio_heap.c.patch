@@ -1,0 +1,40 @@
+--- a/src/audio/heap.c
++++ b/src/audio/heap.c
+@@ -1,3 +1,4 @@
++#include "audio_ptr.h"
+ #include <ultra64.h>
+ 
+ #include "heap.h"
+@@ -809,11 +810,11 @@
+ #endif
+ 
+ #ifdef VERSION_EU
+-    persistentMem = DOUBLE_SIZE_ON_64_BIT(preset->persistentSeqMem + preset->persistentBankMem);
+-    temporaryMem = DOUBLE_SIZE_ON_64_BIT(preset->temporarySeqMem + preset->temporaryBankMem);
++    persistentMem = AUDIO_DOUBLE_SIZE(preset->persistentSeqMem + preset->persistentBankMem);
++    temporaryMem = AUDIO_DOUBLE_SIZE(preset->temporarySeqMem + preset->temporaryBankMem);
+ #else
+-    persistentMem = DOUBLE_SIZE_ON_64_BIT(preset->persistentBankMem + preset->persistentSeqMem);
+-    temporaryMem = DOUBLE_SIZE_ON_64_BIT(preset->temporaryBankMem + preset->temporarySeqMem);
++    persistentMem = AUDIO_DOUBLE_SIZE(preset->persistentBankMem + preset->persistentSeqMem);
++    temporaryMem = AUDIO_DOUBLE_SIZE(preset->temporaryBankMem + preset->temporarySeqMem);
+ #endif
+     totalMem = persistentMem + temporaryMem;
+     wantMisc = gAudioSessionPool.size - totalMem - 0x100;
+@@ -823,12 +824,12 @@
+     sSeqAndBankPoolSplit.wantPersistent = persistentMem;
+     sSeqAndBankPoolSplit.wantTemporary = temporaryMem;
+     seq_and_bank_pool_init(&sSeqAndBankPoolSplit);
+-    sPersistentCommonPoolSplit.wantSeq = DOUBLE_SIZE_ON_64_BIT(preset->persistentSeqMem);
+-    sPersistentCommonPoolSplit.wantBank = DOUBLE_SIZE_ON_64_BIT(preset->persistentBankMem);
++    sPersistentCommonPoolSplit.wantSeq = AUDIO_DOUBLE_SIZE(preset->persistentSeqMem);
++    sPersistentCommonPoolSplit.wantBank = AUDIO_DOUBLE_SIZE(preset->persistentBankMem);
+     sPersistentCommonPoolSplit.wantUnused = 0;
+     persistent_pools_init(&sPersistentCommonPoolSplit);
+-    sTemporaryCommonPoolSplit.wantSeq = DOUBLE_SIZE_ON_64_BIT(preset->temporarySeqMem);
+-    sTemporaryCommonPoolSplit.wantBank = DOUBLE_SIZE_ON_64_BIT(preset->temporaryBankMem);
++    sTemporaryCommonPoolSplit.wantSeq = AUDIO_DOUBLE_SIZE(preset->temporarySeqMem);
++    sTemporaryCommonPoolSplit.wantBank = AUDIO_DOUBLE_SIZE(preset->temporaryBankMem);
+     sTemporaryCommonPoolSplit.wantUnused = 0;
+     temporary_pools_init(&sTemporaryCommonPoolSplit);
+     reset_bank_and_seq_load_status();

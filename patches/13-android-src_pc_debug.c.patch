@@ -1,0 +1,11 @@
+--- a/src/pc/debug.c
++++ b/src/pc/debug.c
+@@ -34,7 +34,7 @@
+ // Crash handler implementation
+ // Based on https://github.com/AloUltraExt/sm64ex-alo/blob/master/src/pc/crash/crash_handler.c
+ 
+-#ifndef OSX_BUILD
++#if !defined(OSX_BUILD) && !defined(__ANDROID__) // Android: see android_support.c (bionic has no execinfo.h)
+ 
+ #define ARRSIZE(x) (sizeof(x) / sizeof(*(x)))
+ #define PTR long long unsigned int)(uintptr_t

@@ -1,0 +1,11 @@
+--- a/src/game/spawn_object.c
++++ b/src/game/spawn_object.c
+@@ -211,7 +211,7 @@
+     }
+ #else
+     // -O2 needs everything until = on the same line
+-    for (i = 0; i < 0x50; i++) obj->rawData.asS32[i] = 0;
++    for (int i = 0; i < 0x50; i++) obj->rawData.asS32[i] = 0;
+ #endif
+ 
+     obj->bhvStackIndex = 0;

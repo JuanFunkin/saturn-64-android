@@ -1,0 +1,20 @@
+--- a/src/audio/playback.c
++++ b/src/audio/playback.c
+@@ -126,7 +126,7 @@
+         return NULL;
+     }
+ 
+-    inst = gCtlEntries[bankId].instruments[instId];
++    inst = AUDIO_ELEM(gCtlEntries[bankId].instruments[instId]);
+     if (inst == NULL) {
+         gAudioErrorFlags = ((bankId << 8) + instId) + 0x1000000;
+         return inst;
+@@ -151,7 +151,7 @@
+         gAudioErrorFlags = ((bankId << 8) + drumId) + 0x4000000;
+         return 0;
+     }
+-    drum = gCtlEntries[bankId].drums[drumId];
++    drum = AUDIO_ELEM(gCtlEntries[bankId].drums[drumId]);
+     if (drum == NULL) {
+         gAudioErrorFlags = ((bankId << 8) + drumId) + 0x5000000;
+     }

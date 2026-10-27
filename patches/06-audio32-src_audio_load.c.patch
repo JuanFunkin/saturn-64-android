@@ -1,0 +1,54 @@
+--- a/src/audio/load.c
++++ b/src/audio/load.c
+@@ -454,13 +454,13 @@
+ // on US/JP this inlines patch_sound, using some -sopt compiler flag
+ void patch_audio_bank(struct AudioBank *mem, u8 *offset, u32 numInstruments, u32 numDrums) {
+     struct Instrument *instrument;
+-    struct Instrument **itInstrs;
+-    struct Instrument **end;
++    InstrumentPtr *itInstrs;
++    InstrumentPtr *end;
+     struct AudioBank *temp;
+     u32 i;
+     void *patched;
+     struct Drum *drum;
+-    struct Drum **drums;
++    DrumPtr *drums;
+ #ifdef VERSION_EU
+     u32 numDrums2;
+ #endif
+@@ -480,10 +480,10 @@
+         mem->drums = PATCH(drums, mem);
+         for (i = 0; i < numDrums2; i++) {
+ #endif
+-            patched = mem->drums[i];
++            patched = AUDIO_ELEM(mem->drums[i]);
+             if (patched != NULL) {
+                 drum = PATCH(patched, mem);
+-                mem->drums[i] = drum;
++                AUDIO_ELEM(mem->drums[i]) = drum;
+                 if (drum->loaded == 0) {
+ #ifndef VERSION_EU
+                     //! copt replaces drum with 'patched' for these two lines
+@@ -509,7 +509,7 @@
+ #endif
+     if (numInstruments > 0) {
+         //! Doesn't affect EU, but required for US/JP
+-        struct Instrument **tempInst;
++        InstrumentPtr *tempInst;
+         itInstrs = temp->instruments;
+         tempInst = temp->instruments;
+         end = numInstruments + tempInst;
+@@ -519,9 +519,9 @@
+ #else
+         do {
+ #endif
+-            if (*itInstrs != NULL) {
+-                *itInstrs = (void *)((uintptr_t) *itInstrs + (uintptr_t) mem);
+-                instrument = *itInstrs;
++            if (AUDIO_ELEM(*itInstrs) != NULL) {
++                AUDIO_ELEM(*itInstrs) = (void *)((uintptr_t) AUDIO_ELEM(*itInstrs) + (uintptr_t) mem);
++                instrument = AUDIO_ELEM(*itInstrs);
+ 
+                 if (instrument->loaded == 0) {
+ #ifndef VERSION_EU
