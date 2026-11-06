@@ -95,37 +95,6 @@ static void draw_game_button(ImDrawList *dl, ImVec2 c, float r, int idx, bool pr
     draw_label(dl, ImVec2(c.x, c.y - lift), rr, idx, ink, a);
 }
 
-// User-added button (any N64 button or a Saturn keyboard shortcut)
-static void draw_custom_button(ImDrawList *dl, ImVec2 c, float r, int slot, bool selected) {
-    TouchCustom &b = touch_custom[slot];
-    float a = touch_opacity;
-    Rgb k = b.use_color ? Rgb{ (float)b.cr, (float)b.cg, (float)b.cb } : Rgb{ 95.f, 125.f, 200.f };
-    bool pressed = b.pressed != 0;
-    float rr = pressed ? r * 0.94f : r;
-    if (touch_style == 1) {
-        dl->AddCircleFilled(c, rr, rgba(k.r, k.g, k.b, (pressed ? 0.90f : 0.45f) * a), 40);
-        dl->AddCircle(c, rr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.95f * a), 40,
-                      selected ? 5.f : (rr * 0.07f < 2.5f ? 2.5f : rr * 0.07f));
-    } else {
-        float lift = pressed ? 0.f : rr * 0.07f;
-        dl->AddCircleFilled(ImVec2(c.x, c.y + rr * 0.10f), rr, rgba(0, 0, 0, 0.35f * a), 40);
-        dl->AddCircleFilled(c, rr, rgba(k.r * 0.55f, k.g * 0.55f, k.b * 0.55f, a), 40);
-        float boost = pressed ? 45.f : 0.f;
-        dl->AddCircleFilled(ImVec2(c.x, c.y - lift), rr * 0.88f, rgba(k.r + boost, k.g + boost, k.b + boost, a), 40);
-        dl->AddCircleFilled(ImVec2(c.x - rr * 0.24f, c.y - rr * 0.32f - lift), rr * 0.30f, rgba(255, 255, 255, 0.20f * a), 24);
-        dl->AddCircle(c, rr, selected ? rgba(255, 210, 40, 1.f) : rgba(255, 255, 255, 0.55f * a), 40, selected ? 5.f : 2.f);
-    }
-    const char *label = b.label[0] ? b.label : "?";
-    size_t n = strlen(label);
-    float fs = rr * (n <= 1 ? 0.95f : (n <= 2 ? 0.80f : (n <= 4 ? 0.50f : 0.38f)));
-    ImFont *font = ImGui::GetFont();
-    ImVec2 ts = font->CalcTextSizeA(fs, 100000.f, 0.f, label);
-    ImVec2 p(c.x - ts.x * 0.5f, c.y - ts.y * 0.5f);
-    bool dark_ink = luma(k) > 150.f && touch_style == 0;
-    dl->AddText(font, fs, ImVec2(p.x + 1.5f, p.y + 1.5f), rgba(0, 0, 0, 0.45f * a), label);
-    dl->AddText(font, fs, p, dark_ink ? rgba(40, 40, 55, a + 0.25f) : rgba(255, 255, 255, a + 0.25f), label);
-}
-
 static void draw_stick(ImDrawList *dl, ImVec2 ds, bool selected) {
     float a = touch_opacity;
     float sr = touch_stick_size * ds.y;
@@ -264,38 +233,8 @@ static void draw_edit_panel(ImVec2 ds) {
                           ImGuiWindowFlags_NoSavedSettings;
     if (ImGui::Begin("Edit touch controls###touch_edit_panel", NULL, fl)) {
         ImGui::TextDisabled("Drag a button to move it");
-        if (ImGui::Button("+ Add button")) ImGui::OpenPopup("##add_button_popup");
-        if (ImGui::BeginPopup("##add_button_popup")) {
-            ImGui::TextDisabled("Choose what the new button does");
-            ImGui::BeginChild("##add_button_list", ImVec2(ds.x * 0.30f, ds.y * 0.42f), true);
-            for (int i = 0; i < touch_action_count(); i++) {
-                ImGui::PushID(i);
-                if (ImGui::Selectable(touch_action_name(i), false, 0, ImVec2(0.f, 34.f))) {
-                    int slot = touch_custom_add(i);
-                    if (slot >= 0) touch_selected = TOUCH_SEL_CUSTOM(slot);
-                    ImGui::CloseCurrentPopup();
-                }
-                ImGui::PopID();
-            }
-            ImGui::EndChild();
-            ImGui::EndPopup();
-        }
         ImGui::Separator();
-        if (touch_selected >= 100 && touch_selected - 100 < TOUCH_MAX_CUSTOM && touch_custom[touch_selected - 100].active) {
-            int k = touch_selected - 100;
-            TouchCustom &b = touch_custom[k];
-            ImGui::Text("Selected: extra button");
-            if (ImGui::BeginCombo("Action", touch_action_name(b.action))) {
-                for (int i = 0; i < touch_action_count(); i++) {
-                    if (ImGui::Selectable(touch_action_name(i), i == b.action)) touch_custom_set_action(k, i);
-                }
-                ImGui::EndCombo();
-            }
-            ImGui::InputText("Label", b.label, sizeof(b.label));
-            ImGui::SliderFloat("Size", &b.size, 0.03f, 0.20f);
-            color_chooser(&b.cr, &b.cg, &b.cb, &b.use_color, b.use_color ? Rgb{ (float)b.cr, (float)b.cg, (float)b.cb } : Rgb{ 95.f, 125.f, 200.f });
-            if (ImGui::Button("Delete this button")) { touch_custom_remove(k); touch_selected = -2; }
-        } else if (touch_selected >= 0 && touch_selected < TB_COUNT) {
+        if (touch_selected >= 0) {
             TouchButton &b = touch_buttons[touch_selected];
             ImGui::Text("Selected: %s", b.name);
             ImGui::SliderFloat("Size", &b.size, 0.03f, 0.20f);
@@ -352,13 +291,6 @@ extern "C" void saturn_touch_ui(void) {
             ImVec2 c(touch_buttons[i].x * ds.x, touch_buttons[i].y * ds.y);
             draw_game_button(dl, c, br, i, touch_buttons[i].pressed != 0,
                              touch_edit && touch_selected == i, touch_buttons[i].visible == 0);
-        }
-        for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
-            if (!touch_custom[i].active) continue;
-            float br = touch_custom[i].size * ds.y;
-            if (!touch_edit && touch_circle_overlaps_ui(touch_custom[i].x, touch_custom[i].y, br / ds.x, br / ds.y)) continue;
-            draw_custom_button(dl, ImVec2(touch_custom[i].x * ds.x, touch_custom[i].y * ds.y), br, i,
-                               touch_edit && touch_selected == TOUCH_SEL_CUSTOM(i));
         }
         float sr = touch_stick_size * ds.y;
         if (touch_edit || touch_stick_active || !touch_circle_overlaps_ui(touch_stick_x, touch_stick_y, sr / ds.x, sr / ds.y))

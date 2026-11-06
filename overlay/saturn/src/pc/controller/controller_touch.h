@@ -32,27 +32,6 @@ typedef struct {
 
 extern TouchButton touch_buttons[TB_COUNT];
 
-// Extra buttons the user can add (any N64 button or a keyboard shortcut of Saturn, e.g. F2 = fly mode)
-#define TOUCH_MAX_CUSTOM 12
-#define TOUCH_SEL_CUSTOM(k) (100 + (k))      // value of touch_selected for custom button k
-typedef struct {
-    int active;
-    float x, y, size;
-    char label[10];
-    int action;                  // index in the action table (touch_action_name)
-    unsigned char cr, cg, cb;
-    int use_color;
-    int pressed;
-    SDL_FingerID finger;
-} TouchCustom;
-extern TouchCustom touch_custom[TOUCH_MAX_CUSTOM];
-int touch_action_count(void);
-const char *touch_action_name(int i);    // long name for menus
-const char *touch_action_short(int i);   // default label for the button
-int touch_custom_add(int action);        // returns the slot, or -1 if full
-void touch_custom_remove(int slot);
-void touch_custom_set_action(int slot, int action);
-
 // Virtual stick (floating: anchors where the finger lands, inside the left half of the screen)
 extern float touch_stick_x, touch_stick_y, touch_stick_size;
 extern float touch_stick_ox, touch_stick_oy;

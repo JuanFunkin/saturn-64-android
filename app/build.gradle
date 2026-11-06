@@ -3,16 +3,16 @@ plugins {
 }
 
 android {
-    namespace 'com.saturnstudio'
+    namespace 'com.saturn64.mobile'
     compileSdk 34
     ndkVersion "26.1.10909125"
 
     defaultConfig {
-        applicationId "com.saturnstudio"
-        minSdk 21          // Android 5.0+: includes 32-bit phones
+        applicationId "com.saturn64.mobile"
+        minSdk 21          // Android 5.0+: incluye telefonos de 32 bits
         targetSdk 34
-        versionCode 1
-        versionName "0.1-android"
+        versionCode 2
+        versionName "0.2-fase2"
 
         ndk {
             if (project.hasProperty('onlyArm64')) {
@@ -37,10 +37,5 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
-    }
-
-    // The engine (libmain.so) is big: do not compress what is already compressed, keep assets readable.
-    androidResources {
-        noCompress 'png', 'bin', 'json', 'ttf'
     }
 }
