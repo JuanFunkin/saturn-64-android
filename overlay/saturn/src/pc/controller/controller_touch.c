@@ -12,6 +12,93 @@
 #define MAX_UI_RECTS 48
 
 TouchButton touch_buttons[TB_COUNT];
+TouchCustom touch_custom[TOUCH_MAX_CUSTOM];
+
+// ---- actions a custom button can trigger ----
+typedef struct { const char *name; const char *label; int is_key; unsigned int mask; int scancode; } TouchAction;
+static const TouchAction touch_actions[] = {
+    { "A button",            "A",     0, A_BUTTON, 0 },
+    { "B button",            "B",     0, B_BUTTON, 0 },
+    { "Z trigger",           "Z",     0, Z_TRIG, 0 },
+    { "Start",               "Start", 0, START_BUTTON, 0 },
+    { "C up",                "C^",    0, U_CBUTTONS, 0 },
+    { "C down",              "Cv",    0, D_CBUTTONS, 0 },
+    { "C left",              "C<",    0, L_CBUTTONS, 0 },
+    { "C right",             "C>",    0, R_CBUTTONS, 0 },
+    { "L trigger",           "L",     0, L_TRIG, 0 },
+    { "R trigger",           "R",     0, R_TRIG, 0 },
+    { "F1",                  "F1",    1, 0, SDL_SCANCODE_F1 },
+    { "F2 (Fly mode)",       "F2",    1, 0, SDL_SCANCODE_F2 },
+    { "F3",                  "F3",    1, 0, SDL_SCANCODE_F3 },
+    { "F4 (Limit FPS)",      "F4",    1, 0, SDL_SCANCODE_F4 },
+    { "F5",                  "F5",    1, 0, SDL_SCANCODE_F5 },
+    { "F6 (Timeline editor)","F6",    1, 0, SDL_SCANCODE_F6 },
+    { "F7",                  "F7",    1, 0, SDL_SCANCODE_F7 },
+    { "F8",                  "F8",    1, 0, SDL_SCANCODE_F8 },
+    { "F9",                  "F9",    1, 0, SDL_SCANCODE_F9 },
+    { "F10",                 "F10",   1, 0, SDL_SCANCODE_F10 },
+    { "F11",                 "F11",   1, 0, SDL_SCANCODE_F11 },
+    { "F12",                 "F12",   1, 0, SDL_SCANCODE_F12 },
+    { "Space",               "Space", 1, 0, SDL_SCANCODE_SPACE },
+    { "Enter",               "Enter", 1, 0, SDL_SCANCODE_RETURN },
+    { "Tab",                 "Tab",   1, 0, SDL_SCANCODE_TAB },
+    { "Escape",              "Esc",   1, 0, SDL_SCANCODE_ESCAPE },
+    { "Arrow up",            "Up",    1, 0, SDL_SCANCODE_UP },
+    { "Arrow down",          "Down",  1, 0, SDL_SCANCODE_DOWN },
+    { "Arrow left",          "Left",  1, 0, SDL_SCANCODE_LEFT },
+    { "Arrow right",         "Right", 1, 0, SDL_SCANCODE_RIGHT },
+};
+#define NUM_ACTIONS ((int)(sizeof(touch_actions) / sizeof(touch_actions[0])))
+
+int touch_action_count(void) { return NUM_ACTIONS; }
+const char *touch_action_name(int i) { return (i >= 0 && i < NUM_ACTIONS) ? touch_actions[i].name : "?"; }
+const char *touch_action_short(int i) { return (i >= 0 && i < NUM_ACTIONS) ? touch_actions[i].label : "?"; }
+
+static void push_key(int scancode, int down) {
+    SDL_Event ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    ev.key.state = down ? SDL_PRESSED : SDL_RELEASED;
+    ev.key.repeat = 0;
+    ev.key.keysym.scancode = (SDL_Scancode)scancode;
+    ev.key.keysym.sym = SDL_GetKeyFromScancode((SDL_Scancode)scancode);
+    SDL_Window *w = SDL_GL_GetCurrentWindow();
+    ev.key.windowID = w ? SDL_GetWindowID(w) : 0;
+    SDL_PushEvent(&ev);
+}
+
+void touch_custom_set_action(int slot, int action) {
+    if (slot < 0 || slot >= TOUCH_MAX_CUSTOM || action < 0 || action >= NUM_ACTIONS) return;
+    // release a key that is currently held by the old action
+    if (touch_custom[slot].pressed && touch_actions[touch_custom[slot].action].is_key)
+        push_key(touch_actions[touch_custom[slot].action].scancode, 0);
+    touch_custom[slot].pressed = 0;
+    touch_custom[slot].action = action;
+    strncpy(touch_custom[slot].label, touch_actions[action].label, sizeof(touch_custom[slot].label) - 1);
+    touch_custom[slot].label[sizeof(touch_custom[slot].label) - 1] = 0;
+}
+
+int touch_custom_add(int action) {
+    for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
+        if (!touch_custom[i].active) {
+            memset(&touch_custom[i], 0, sizeof(touch_custom[i]));
+            touch_custom[i].active = 1;
+            touch_custom[i].x = 0.5f;
+            touch_custom[i].y = 0.5f;
+            touch_custom[i].size = 0.060f;
+            touch_custom_set_action(i, action);
+            return i;
+        }
+    }
+    return -1;
+}
+
+void touch_custom_remove(int slot) {
+    if (slot < 0 || slot >= TOUCH_MAX_CUSTOM) return;
+    touch_custom_set_action(slot, touch_custom[slot].action);   // releases a held key
+    touch_custom[slot].active = 0;
+    touch_custom[slot].pressed = 0;
+}
 float touch_stick_x, touch_stick_y, touch_stick_size;
 float touch_stick_ox, touch_stick_oy;
 float touch_stick_dx, touch_stick_dy;
@@ -106,6 +193,7 @@ void touch_layout_reset(void) {
     }
     touch_stick_use_color = 0;
     touch_style = 0;
+    memset(touch_custom, 0, sizeof(touch_custom));
     touch_stick_x = 0.14f;
     touch_stick_y = 0.70f;
     touch_stick_size = 0.17f;
@@ -116,6 +204,7 @@ void touch_layout_reset(void) {
 void touch_layout_mirror(void) {
     for (int i = 0; i < TB_COUNT; i++) touch_buttons[i].x = 1.0f - touch_buttons[i].x;
     touch_stick_x = 1.0f - touch_stick_x;
+    for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) if (touch_custom[i].active) touch_custom[i].x = 1.0f - touch_custom[i].x;
 }
 
 void touch_layout_save(void) {
@@ -127,6 +216,16 @@ void touch_layout_save(void) {
     fprintf(f, "style %d\n", touch_style);
     fprintf(f, "STICK %f %f %f 1 %d %d %d\n", touch_stick_x, touch_stick_y, touch_stick_size,
             touch_stick_use_color ? touch_stick_cr : -1, touch_stick_cg, touch_stick_cb);
+    for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
+        if (!touch_custom[i].active) continue;
+        char lab[10];
+        strncpy(lab, touch_custom[i].label[0] ? touch_custom[i].label : "?", sizeof(lab) - 1);
+        lab[sizeof(lab) - 1] = 0;
+        for (char *p = lab; *p; p++) if (*p == ' ') *p = '_';
+        fprintf(f, "CUSTOM %f %f %f %d %d %d %d %s\n", touch_custom[i].x, touch_custom[i].y, touch_custom[i].size,
+                touch_custom[i].use_color ? touch_custom[i].cr : -1, touch_custom[i].cg, touch_custom[i].cb,
+                touch_custom[i].action, lab);
+    }
     for (int i = 0; i < TB_COUNT; i++)
         fprintf(f, "%s %f %f %f %d %d %d %d\n", touch_buttons[i].name, touch_buttons[i].x, touch_buttons[i].y,
                 touch_buttons[i].size, touch_buttons[i].visible,
@@ -148,6 +247,23 @@ void touch_layout_load(void) {
         if (sscanf(line, "opacity %f", &a) == 1) { touch_opacity = a; continue; }
         if (sscanf(line, "ui_mult %f", &a) == 1) { if (a >= 0.5f && a <= 2.5f) touch_ui_mult = a; continue; }
         if (sscanf(line, "style %d", &vis) == 1) { touch_style = (vis == 1) ? 1 : 0; continue; }
+        {
+            float cx, cy, cs; int ccr, ccg, ccb, cact; char clab[16];
+            if (sscanf(line, "CUSTOM %f %f %f %d %d %d %d %15s", &cx, &cy, &cs, &ccr, &ccg, &ccb, &cact, clab) == 8
+                && cact >= 0 && cact < NUM_ACTIONS) {
+                int slot = touch_custom_add(cact);
+                if (slot >= 0) {
+                    touch_custom[slot].x = cx; touch_custom[slot].y = cy; touch_custom[slot].size = cs;
+                    strncpy(touch_custom[slot].label, clab, sizeof(touch_custom[slot].label) - 1);
+                    for (char *p = touch_custom[slot].label; *p; p++) if (*p == '_') *p = ' ';
+                    if (ccr >= 0 && ccr <= 255) {
+                        touch_custom[slot].use_color = 1;
+                        touch_custom[slot].cr = (unsigned char)ccr; touch_custom[slot].cg = (unsigned char)ccg; touch_custom[slot].cb = (unsigned char)ccb;
+                    }
+                }
+                continue;
+            }
+        }
         vis = 1;
         int cr = -1, cg = 0, cb = 0;
         int n = sscanf(line, "%31s %f %f %f %d %d %d %d", name, &a, &b, &c, &vis, &cr, &cg, &cb);
@@ -208,6 +324,13 @@ static int hit_test(float nx, float ny, int include_stick, int include_hidden) {
         float d = sqrtf((px - cx) * (px - cx) + (py - cy) * (py - cy));
         if (d <= r && d < best_d) { best = i; best_d = d; }
     }
+    for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
+        if (!touch_custom[i].active) continue;
+        float cx = touch_custom[i].x * w, cy = touch_custom[i].y * h;
+        float r = touch_custom[i].size * h * 1.25f;
+        float d = sqrtf((px - cx) * (px - cx) + (py - cy) * (py - cy));
+        if (d <= r && d < best_d) { best = TOUCH_SEL_CUSTOM(i); best_d = d; }
+    }
     if (best == -2 && include_stick) {
         float cx = touch_stick_x * w, cy = touch_stick_y * h;
         float r = touch_stick_size * h * 1.2f;
@@ -249,7 +372,8 @@ void touch_handle_event(const SDL_Event *e) {
             touch_selected = hit;
             if (hit != -2) { dragging = 1; drag_finger = id; }
         } else if (e->type == SDL_FINGERMOTION && dragging && id == drag_finger) {
-            if (touch_selected >= 0) { touch_buttons[touch_selected].x = clamp01(nx); touch_buttons[touch_selected].y = clamp01(ny); }
+            if (touch_selected >= 100) { int k = touch_selected - 100; if (k < TOUCH_MAX_CUSTOM) { touch_custom[k].x = clamp01(nx); touch_custom[k].y = clamp01(ny); } }
+            else if (touch_selected >= 0) { touch_buttons[touch_selected].x = clamp01(nx); touch_buttons[touch_selected].y = clamp01(ny); }
             else if (touch_selected == -1) { touch_stick_x = clamp01(nx); touch_stick_y = clamp01(ny); }
         } else if (e->type == SDL_FINGERUP && id == drag_finger) {
             dragging = 0;
@@ -262,7 +386,12 @@ void touch_handle_event(const SDL_Event *e) {
     if (e->type == SDL_FINGERDOWN) {
         if (touch_ui_popup_open || point_in_ui(nx, ny)) return;   // the touch belongs to a Saturn window/menu
         int hit = hit_test(nx, ny, 0, 0);
-        if (hit >= 0) {
+        if (hit >= 100) {
+            int k = hit - 100;
+            touch_custom[k].pressed = 1;
+            touch_custom[k].finger = id;
+            if (touch_actions[touch_custom[k].action].is_key) push_key(touch_actions[touch_custom[k].action].scancode, 1);
+        } else if (hit >= 0) {
             touch_buttons[hit].pressed = 1;
             touch_buttons[hit].finger = id;
         } else if (!touch_stick_active && nx < 0.5f) {
@@ -290,6 +419,12 @@ void touch_handle_event(const SDL_Event *e) {
         for (int i = 0; i < TB_COUNT; i++) {
             if (touch_buttons[i].pressed && touch_buttons[i].finger == id) touch_buttons[i].pressed = 0;
         }
+        for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
+            if (touch_custom[i].active && touch_custom[i].pressed && touch_custom[i].finger == id) {
+                touch_custom[i].pressed = 0;
+                if (touch_actions[touch_custom[i].action].is_key) push_key(touch_actions[touch_custom[i].action].scancode, 0);
+            }
+        }
     }
 }
 
@@ -302,6 +437,11 @@ static void touch_read(OSContPad *pad) {
 
     for (int i = 0; i < TB_COUNT; i++) {
         if (touch_buttons[i].pressed && touch_buttons[i].visible) pad->button |= touch_buttons[i].mask;
+    }
+
+    for (int i = 0; i < TOUCH_MAX_CUSTOM; i++) {
+        if (touch_custom[i].active && touch_custom[i].pressed && !touch_actions[touch_custom[i].action].is_key)
+            pad->button |= touch_actions[touch_custom[i].action].mask;
     }
 
     if (touch_stick_active) {
